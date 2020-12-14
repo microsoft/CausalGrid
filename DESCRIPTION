@@ -1,0 +1,28 @@
+Package: CausalGrid
+Title: Analysis of Subgroups
+Version: 0.2
+Authors@R: person("Brian", "Quistorff", email = "Brian.Quistorff@microsoft.com",
+                  role = c("aut", "cre"))
+Description: Analysis of Subgroups.
+Depends: R (>= 3.1.0), 
+    caret,
+	gsubfn,
+	assertthat
+License: MIT
+LazyData: true
+RoxygenNote: 7.1.1
+Suggests: 
+    ggplot2,
+    glmnet,
+    gglasso,
+    ranger,
+    parallel,
+    pbapply,
+    testthat,
+    knitr,
+    rmarkdown
+BuildVignettes: false
+Imports: Rcpp (>= 1.0.1)
+LinkingTo: Rcpp
+Encoding: UTF-8
+VignetteBuilder: knitr

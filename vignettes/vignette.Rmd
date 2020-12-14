@@ -1,0 +1,33 @@
+---
+title: "vignette"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(CausalGrid)
+```
+
+Let's get some fake data
+```{r}
+N = 1000
+X = matrix(rnorm(N), ncol=1)
+d = rbinom(N, 1, 0.5)
+tau = as.integer(X[,1]>0)
+y = d*tau + rnorm(1000, 0, 0.0001)
+```
+
+Here's how you use the package
+```{r}
+est_part = fit_estimate_partition(y, X, d)
+```

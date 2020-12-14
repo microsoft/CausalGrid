@@ -1,0 +1,11 @@
+^renv$
+^renv\.lock$
+^CausalGrid\.Rproj$
+^\.Rproj\.user$
+^\.vs
+^archive
+^writeups
+^project
+^tests/sim.RData$
+^\.lintr$
+^dev_notes\.md

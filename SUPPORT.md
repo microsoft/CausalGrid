@@ -1,8 +1,9 @@
 # Building the project
 Notes on building:
-- install (renv)[https://rstudio.github.io/renv/articles/renv.html] package and then use `renv::init()` and choose "1: Restore the project from the lockfile."
-- when building, restart the R session before "Install and restart", otherwise it can't copy over the DLL
-- When R CMD CHECK, set the test `do_load_all=F`
+- install (renv)[https://rstudio.github.io/renv/articles/renv.html] package. Then after opening the project you should be able to use `renv::restore()`.
+- You will need RTools (probably at least v3.5)
+- On Windows, when building, restart the R session before "Install and restart", otherwise it can't copy over the DLL (it stays in memory)
+- When building or `R CMD CHECK`, set the `do_load_all=F` in the test files
 - Building copies everything over to temp dir and then deletes, so might want to move the large files (`project/sim.RData`) out to save time.
 
 

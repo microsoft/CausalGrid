@@ -1,0 +1,236 @@
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\use_minted 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Online Cross-Fit Error Algo
+\end_layout
+
+\begin_layout Standard
+
+\emph on
+Background
+\emph default
+: For variance (MSE) there is the Welford algorithm for computing variance
+ online.
+ 
+\begin_inset Formula 
+\begin{align*}
+\bar{x}_{k} & =\bar{x}_{k-1}+\frac{x_{k}-\bar{x}_{k-1}}{k}\\
+\bar{x}_{k} & =\bar{x}_{k-\tau}+\frac{(\sum_{t\in\tau}x_{t})-\tau\bar{x}_{k-\tau}}{k}\\
+\\
+S_{k} & =S_{k-1}+(x_{k}-\bar{x}_{k-1})(x_{k}-\bar{x}_{k})\\
+S_{k} & =S_{k-1}+\frac{(x_{k}-\bar{x}_{k-1})}{k}k(x_{k}-\bar{x}_{k})\\
+S_{k} & =S_{k-1}+(\bar{x}_{k}-\bar{x}_{k-1})k(x_{k}-\bar{x}_{k})\\
+\\
+\\
+S_{k}-S_{k-1}\\
+\sum_{i=1}^{k-1}[(x_{i}-\bar{x}_{k})^{2}-(x_{i}-\bar{x}_{k-1})^{2}]+(x_{k}-\bar{x}_{k})^{2}\\
+\sum_{i=1}^{k-1}[-2x_{i}(\bar{x}_{k}-\bar{x}_{k-1})+(\bar{x}_{k}-\bar{x}_{k-1})(\bar{x}_{k}+\bar{x}_{k-1})]+(x_{k}-\bar{x}_{k})^{2}\\
+(\bar{x}_{k}-\bar{x}_{k-1})\sum_{i=1}^{k-1}[-x_{i}+\bar{x}_{k}-x_{i}+\bar{x}_{k-1}]+(x_{k}-\bar{x}_{k})^{2}\\
+(\bar{x}_{k-1}-\bar{x}_{k})\sum_{i=1}^{k-1}(x_{i}-\bar{x}_{k})+(x_{k}-\bar{x}_{k})^{2}\\
+(\bar{x}_{k-1}-\bar{x}_{k})[\sum_{i=1}^{k}(x_{i}-\bar{x}_{k})-(x_{k}-\bar{x}_{k})]+(x_{k}-\bar{x}_{k})^{2}\\
+(\bar{x}_{k-1}-\bar{x}_{k})(\bar{x}_{k}-x_{k})+(x_{k}-\bar{x}_{k})^{2}\\
+\\
+S_{k}-S_{k-\tau}\\
+\sum_{i=1}^{k-\tau}[(x_{i}-\bar{x}_{k})^{2}-(x_{i}-\bar{x}_{k-\tau})^{2}]+\sum_{i=k-\tau+1}^{k}(x_{i}-\bar{x}_{k})^{2}\\
+\sum_{i=1}^{k-\tau}[-2x_{i}(\bar{x}_{k}-\bar{x}_{k-\tau})+(\bar{x}_{k}-\bar{x}_{k-\tau})(\bar{x}_{k}+\bar{x}_{k-\tau})]+\sum_{i=k-\tau+1}^{k}(x_{i}-\bar{x}_{k})^{2}\\
+(\bar{x}_{k}-\bar{x}_{k-\tau})\sum_{i=1}^{k-\tau}[-x_{i}+\bar{x}_{k}-x_{i}+\bar{x}_{k-\tau}]+\sum_{i=k-\tau+1}^{k}(x_{i}-\bar{x}_{k})^{2}\\
+(\bar{x}_{k}-\bar{x}_{k-\tau})\sum_{i=1}^{k-\tau}[-x_{i}+\bar{x}_{k}]+\sum_{i=k-\tau+1}^{k}(x_{i}-\bar{x}_{k})^{2}\\
+(\bar{x}_{k}-\bar{x}_{k-\tau})[\sum_{i=1}^{k}(\bar{x}_{k}-x_{i})-\sum_{i=k-\tau+1}^{k}(\bar{x}_{k}-x_{i})]+\sum_{i=k-\tau+1}^{k}(x_{i}-\bar{x}_{k})^{2}\\
+(\bar{x}_{k}-\bar{x}_{k-\tau})[\sum_{i=k-\tau+1}^{k}(x_{i}-\bar{x}_{k})]+\sum_{i=k-\tau+1}^{k}(x_{i}-\bar{x}_{k})^{2}\\
+\sum_{i=k-\tau+1}^{k}(x_{i}-\bar{x}_{k})(x_{i}-\bar{x}_{k-\tau})\\
+\\
+MSE\ \sigma_{n}^{2} & =S_{n}/n
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+For cross-fitting we need to keep track of two running means (
+\begin_inset Formula $\bar{x}^{a}$
+\end_inset
+
+, 
+\begin_inset Formula $\bar{x}^{b}$
+\end_inset
+
+) and now 
+\begin_inset Formula $S_{k}^{b}=\sum_{i=1}^{k}(x_{i}-\bar{x}^{a})^{2}$
+\end_inset
+
+.
+ If we add a new data point to 
+\begin_inset Formula $a$
+\end_inset
+
+, then we don't update 
+\begin_inset Formula $S^{a}$
+\end_inset
+
+ or 
+\begin_inset Formula $\bar{x}^{b}$
+\end_inset
+
+, but we do update 
+\begin_inset Formula $\bar{x}^{a}$
+\end_inset
+
+ as normal andd then this affects 
+\begin_inset Formula $S^{b}$
+\end_inset
+
+.
+ Suppose that 
+\begin_inset Formula $\Delta=\bar{x}_{k}^{a}-\bar{x}_{k-1}^{a}$
+\end_inset
+
+.
+ We update 
+\begin_inset Formula $S^{b}$
+\end_inset
+
+
+\begin_inset Formula 
+\begin{align*}
+S_{(b=k',a=k)}^{b} & =\sum_{i\in b}(x_{i}-\bar{x}_{k}^{a})^{2}\\
+ & =\sum_{i\in b}(x_{i}-(\Delta+\bar{x}_{k-1}^{a}))^{2}\\
+ & =\sum_{i\in b}((x_{i}-\bar{x}_{k-1}^{a})-\Delta)^{2}\\
+ & =S_{(b=k',a=k-1)}^{b}+\Delta^{2}+2\Delta\bar{x}_{k-1}^{a}-2\Delta\sum_{i\in b}x_{i}\\
+ & =S_{(b=k',a=k-1)}^{b}+\Delta^{2}+2\Delta\bar{x}_{k-1}^{a}-2\Delta k'\bar{x}_{k'}^{b}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+References:
+\end_layout
+
+\begin_layout Standard
+- 
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+https://stats.stackexchange.com/questions/332951/online-algorithm-for-the-mean-squ
+are-error
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+-
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+https://stats.stackexchange.com/questions/235129/online-estimation-of-variance-wit
+h-limited-memory/235151#235151
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+- 
+\begin_inset Flex URL
+status open
+
+\begin_layout Plain Layout
+
+https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document

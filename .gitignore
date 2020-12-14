@@ -1,3 +1,11 @@
+#Sims stuff
+project/sim.RData
+project/log.txt
+
+#Cpp builds
+src/*.o
+src/*.dll
+
 # History files
 .Rhistory
 .Rapp.history
