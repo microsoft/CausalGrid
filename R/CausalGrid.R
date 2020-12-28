@@ -1,11 +1,18 @@
 #' CausalGrid: A package for subgroup effects
+#' 
+#' This package helps you analyze subgroups. The main entry point is \code{\link{fit_estimate_partition}}.
 #'
-#' Intervals are (a,b], and [a,b] for the lowest. A split at x means <= and >
-#' We randomize in generating train/est and trtr/trcv splits. Possibly cv.glmnet and cv.gglasso as well.
-#'
+#' Segment definition: Intervals are (a,b], and [a,b] for the lowest. A split at x means <= and >. \code{\link{fit_estimate_partition}}.
+#' 
+#' Randomization: This package should be able to be run with no randomness. With simple params the following places randomize. \itemize{
+#'   \item  Generating train/est splits. Can be overridden by providing \code{tr_split}
+#'   \item  Generating trtr/trcv splits. Can be overridden by providing \code{cv_folds}
+#'   \item  Bumping samples. Can be overriddgen by providing list of samples for  \code{bump_samples}
+#'   \item  Estimation plans: Provide ones ( \code{lm_est(lasso=TRUE,...)} and  \code{grid_rf}) use  \code{cv_folds}. User-made ones should too. 
+#' }
 #'
 #' @useDynLib CausalGrid, .registration = TRUE
-#' @importFrom Rcpp evalCpp
+#' @importFrom Rcpp sourceCpp
 #' @importFrom stats coef formula lm model.matrix p.adjust pt qt quantile sd vcov var predict rnorm
 #' @importFrom utils combn
 #' @import caret
@@ -17,17 +24,21 @@
 NULL
 #> NULL
 
+# Source code layout
+# - Given the multiple estimates regime, most of the data process needs to account for different formats.
+#   Wrappers for these are in utils.R
+# Data structure notes
+# - In order to work with both X as matrix and data.frame I used X[,k], but this is messed up 
+#   with incoming Tibbles so convert those.
 
 #TODO:
 # Correctness:
-# - Ensure case where estimation might not have any observations in a cell
+# - When getting factors for s ample from a grid, if the new data is more extreme (even for numbers) we throw NAs. Fix.
 # Cleanup:
 # - Encapsulate valid_partition() + bucket-splits with est_plan (deal with what happens with est error). + Doc.
 # - Styler and lintr; https://style.tidyverse.org/
-# - cleanup the _m functions (with their bare counterparts)
 # Functionality:
 # - Allow for picking paritition with # cells closest to an 'ideal' number
-# - Allow for integer types with range <=g to pick those values rather than the quantiles.
 # - Allow initial splits to be pre-determined.
 # - Cleanup Predict function and allow y_hat (how do other packages distinguish y_hat from d_hat?). Allow mult. te
 # - Like GRF, When considering a split, require that each child node have min.node.size samples with treatment value
@@ -35,17 +46,20 @@ NULL
 # - summary method?
 # - Warn if CV picks end-point (and maybe reduce minsize of cv_tr to 2 in the case we need more complex)
 # - Check that tr+est and trtr's each had all the categories in sufficient quantity
-# - Provide a double-selection version of lm_X_est (think through multiple D case)
+# - Provide a double-selection version of lm_est (think through multiple D case)
 # - update importance weights in change_complexity
 # - Provide partial dependency functions/graphs
 # - graphs: Show a rug (indicators for data points on the x-axis) or a histogram along axis.
 # Usability:
+# - Document descriptions (separate from titles)
 # - msg for assertions
 # - Have nicer factor labels (especially if split at bottom point, make [T,T] rather than [T,T+1], and redo top 
 #   (to not have -1))
 # - ?? switch to have min_size apply only to train_folds*splits rather than smallest (test) fold * splits. User can 
 #   work around with math.
+# - Filter out "essentially perfect fit: summary may be unreliable" from lm
 # Performance: Low-priority as doing pretty well so far
+# - Is it fast to disable the check for constant D (and just catch the estimation error?)
 # - For each dim, save stats for each existing section and only update the stats for the section being split.
 #   - Additionally, Use incremental update formulas to recompute the metrics after moving split point over a 
 #     few observations (for affected cells). Can look at (fromo)[https://cran.r-project.org/web/packages/fromo/] and 
@@ -54,5 +68,5 @@ NULL
 # - see if can swap findInterval for cut() (do I need the labels)
 # Checks: Check all user input types of exported functions
 # Tests: More!
-# R check (currently ignoring): License, top-level dev_notes.md, checking dependencies in R code, 
+# R check (currently ignoring): checking dependencies in R code, 
 #          Undefined global functions or variables, tests

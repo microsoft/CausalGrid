@@ -2,7 +2,7 @@
 % Please edit documentation in R/fit_estimate.R
 \name{print.estimated_partition}
 \alias{print.estimated_partition}
-\title{print.estimated_partition}
+\title{Print estimated_partition}
 \usage{
 \method{print}{estimated_partition}(
   x,
@@ -20,15 +20,15 @@
 
 \item{drop_unsplit}{If True, drop columns for variables overwhich the partition did not split}
 
-\item{digits}{digits options}
+\item{digits}{digits Option (default is NULL)}
 
 \item{import_order}{should we use importance ordering or input ordering (default)}
 
-\item{...}{Additional arguments. These won't be passed to print.data.frame}
+\item{...}{Additional arguments. These will be passed to print.data.frame}
 }
 \value{
 string (and displayed)
 }
 \description{
-print.estimated_partition
+Print a summary of the estimated partition. Uses \code{\link{get_desc_df.estimated_partition}}
 }

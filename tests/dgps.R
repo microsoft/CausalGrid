@@ -94,3 +94,15 @@ AI_sim <- function(n=500, design=1) {
   Y = eta + 0.5*(2*w-1)*kappa + epsilon
   return(list(Y, X, w, kappa))
 }
+
+XOR_sim <- function(n=500) {
+  w = rbinom(n, 1, 0.5)
+  K=2
+  X = matrix(rnorm(n*K), nrow=n, ncol=K)
+  X_I = X>0
+  eta = 0
+  kappa = ((X[,1]>0 & X[,2]>0) | (X[,1]<0 & X[,2]<0))*1
+  epsilon = rnorm(n, 0, 0.01)
+  Y = eta + 0.5*(2*w-1)*kappa + epsilon
+  return(list(Y, X, w, kappa))
+}

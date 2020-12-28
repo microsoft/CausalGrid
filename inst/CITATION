@@ -1,0 +1,13 @@
+citHeader("To cite CausalGrid in publications use:")
+
+citEntry(entry = "Unpublished",
+  title        = "Causal Grid: Regular partitions for subgroup identification and analysis",
+  author       = personList(as.person("Brian Quistorff")),
+  year         = "2020",
+  url          = "https://sites.google.com/site/bquistorff/research",
+
+  textVersion  =
+  paste("Brian Quistorff (2020).",
+        "Causal Grid: Regular partitions for subgroup identification and analysis.",
+        "URL https://sites.google.com/site/bquistorff/research.")
+)

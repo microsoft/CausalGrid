@@ -2,7 +2,7 @@
 % Please edit documentation in R/grid_partition.R
 \name{print.partition_split}
 \alias{print.partition_split}
-\title{print.partition_split}
+\title{Print partition_split}
 \usage{
 \method{print}{partition_split}(x, ...)
 }
@@ -15,5 +15,5 @@
 None
 }
 \description{
-print.partition_split
+Print partition_split
 }

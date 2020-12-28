@@ -1,5 +1,4 @@
-# To run in the command-line with load_all: change do_load_all=T, then run the code in the first if(FALSE), subsequent runs just run that last line of the False block
-# Undo for building project
+# To run in the command-line with load_all: then run the code in the first if(FALSE), subsequent runs just run that last line of the False block
 
 library(testthat)
 library(rprojroot)
@@ -11,13 +10,7 @@ if(FALSE) { #Run manually to debug
   debugSource(paste0(testthat_root_dir,"/testres.R"))
 }
 
-do_load_all=F
-if(!do_load_all){
-  library(CausalGrid)
-} else {
-  library(devtools)
-  devtools::load_all(".", export_all=FALSE, helpers=FALSE)
-}
+library(CausalGrid)
 
 set.seed(1337)
 

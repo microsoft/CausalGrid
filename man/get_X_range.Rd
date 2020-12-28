@@ -2,7 +2,7 @@
 % Please edit documentation in R/grid_partition.R
 \name{get_X_range}
 \alias{get_X_range}
-\title{get_X_range}
+\title{Get X_range}
 \usage{
 get_X_range(X)
 }
@@ -13,5 +13,5 @@ get_X_range(X)
 list of length K with each element being a c(min, max) along that dimension
 }
 \description{
-get_X_range
+Get X_range
 }

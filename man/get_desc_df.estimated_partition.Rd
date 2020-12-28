@@ -2,7 +2,7 @@
 % Please edit documentation in R/fit_estimate.R
 \name{get_desc_df.estimated_partition}
 \alias{get_desc_df.estimated_partition}
-\title{get_desc_df.estimated_partition}
+\title{Get descriptive data.frame for an estimated_partition}
 \usage{
 get_desc_df.estimated_partition(
   obj,
@@ -27,5 +27,5 @@ get_desc_df.estimated_partition(
 data.frame
 }
 \description{
-get_desc_df.estimated_partition
+Get statistics for each cell (feature boundary, and estimated cell stats)
 }

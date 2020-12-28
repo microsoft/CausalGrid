@@ -2,20 +2,19 @@
 % Please edit documentation in R/fit_estimate.R
 \name{change_complexity}
 \alias{change_complexity}
-\title{change_complexity}
+\title{Change the complexity of a fit_estimate_partition}
 \usage{
 change_complexity(fit, y, X, d = NULL, partition_i)
 }
 \arguments{
 \item{fit}{estimated_partition}
 
-\item{y}{Nx1 matrix of outcome (label/target) data}
+\item{y}{Nx1 matrix of outcome (label/target) data. With multiple core estimates see Details below.}
 
-\item{X}{NxK matrix of features (covariates). Must be numerical (unordered categorical 
-variables must be 1-hot encoded.)}
+\item{X}{NxK matrix of features (covariates). With multiple core estimates see Details below.}
 
-\item{d}{(Optional) NxP matrix (with colnames) or vector of treatment data. If all equally 
-important they should be normalized to have the same variance.}
+\item{d}{(Optional) NxP matrix (with colnames) of treatment data. If all equally important they 
+should be normalized to have the same variance. With multiple core estimates see Details below.}
 
 \item{partition_i}{partition_i - 1 is the last include in split_seq included in new partition}
 }
@@ -23,5 +22,8 @@ important they should be normalized to have the same variance.}
 updated estimated_partition
 }
 \description{
-Doesn't update the importance weights
+Change the complexity level of the partition and re-estimate cell statistics.
+}
+\details{
+Note: doesn't update the importance weights
 }

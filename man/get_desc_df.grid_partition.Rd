@@ -2,7 +2,7 @@
 % Please edit documentation in R/grid_partition.R
 \name{get_desc_df.grid_partition}
 \alias{get_desc_df.grid_partition}
-\title{get_desc_df.grid_partition}
+\title{Get descriptive data.frame for grid_partition}
 \usage{
 get_desc_df.grid_partition(
   partition,
@@ -30,5 +30,5 @@ get_desc_df.grid_partition(
 data.frame
 }
 \description{
-get_desc_df.grid_partition
+Get descriptive data.frame for grid_partition
 }

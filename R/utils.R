@@ -42,24 +42,85 @@ my_apply <- function(X, fn_k, apply_verbosity, pr_cl, params) {
   return(rets)
 }
 
+
+replace_k_factor <- function(base_facts, k, new_fact) {
+  base_facts[[k]] = new_fact
+  return(base_facts)
+}
+
+is_factor_dim_k <- function(X, k) {
+  return(is.factor(X[, k]))
+}
+
+# Fold utils --------------------------
+
+gen_folds <- function(y, nfolds) {
+  assert_that(nfolds>1)
+  idxOut_new  = caret::createFolds(y, k=nfolds, list=TRUE)
+  
+  idx_new = list()
+  for(f in 1:nfolds) {
+    idx_new[[f]] = sort(unlist(idxOut_new[-f], use.names=FALSE))
+  }
+  
+  foldids = foldlists_to_foldids(idxOut_new)
+  
+  return(list(foldids=foldids, index=idx_new, indexOut=idxOut_new))
+  
+}
+
+foldlists_to_foldids <- function(indexOut) {
+  nfolds = length(indexOut)
+  N = sum(sapply(indexOut, length))
+  foldids = rep(0, N)
+  for(f in 1:nfolds) {
+    foldids[indexOut[[f]]] = f
+  }
+  return(foldids)
+}
+
+foldids_to_foldlists <- function(foldids, nfolds) {
+  index = list()
+  indexOut = list()
+  for(f in 1:nfolds){
+    index[[f]] = which(foldids!=f)
+    indexOut[[f]] = which(foldids==f)
+  }
+  return(list(index=index, indexOut=indexOut))
+}
+
+expand_fold_info <- function(y, cv_folds, m_mode) {
+  if(length(cv_folds)==1) {
+    nfolds = cv_folds
+    folds_ret = gen_folds_m(y, nfolds, m_mode)
+    foldids = foldlists_to_foldids_m(folds_ret, m_mode)
+  }
+  else {
+    foldids = cv_folds
+    nfolds = if(m_mode!=DS.MULTI_SAMPLE) max(foldids) else max(foldids[[1]])
+    folds_ret = foldids_to_foldlists_m(foldids, nfolds, m_mode)
+  }
+  
+  return(list(nfolds, folds_ret, foldids))
+}
+
 # Multi-sample utils ----------------------
 is_sep_sample <- function(X) {
   return(is.list(X) & !is.data.frame(X))
 }
 
+DS.SINGLE = 0
+DS.MULTI_SAMPLE = 1
+DS.MULTI_D = 2
+DS.MULTI_Y = 3
+
 is_sep_estimators <- function(m_mode) {
-  return(m_mode==1 || m_mode==3)
+  return(m_mode==DS.MULTI_SAMPLE || m_mode==DS.MULTI_Y)
 }
 
-#length of N is M (so even if same sample)
-nrow_m <- function(X, M) {
-  if(is_sep_sample(X)) {
-    return(sapply(X, nrow))
-  }
-  N = nrow(X)
-  if(M==1) return(N)
-  
-  return(rep(N, M))
+min_sum <- function(data, M_mult) {
+  if(!M_mult) return(sum(data))
+  return(min(sapply(data, sum)))
 }
 
 ensure_good_X <- function(X) {
@@ -82,7 +143,7 @@ ensure_good_X <- function(X) {
 
 get_sample_type <- function(y, X, d=NULL, checks=FALSE) {
   if(is_sep_sample(X)) { #Different samples
-    m_mode=1
+    m_mode=DS.MULTI_SAMPLE
     M = length(X)
     N = sapply(X, nrow)
     K = ncol(X[[1]])
@@ -106,7 +167,7 @@ get_sample_type <- function(y, X, d=NULL, checks=FALSE) {
     K = ncol(X)
     
     if(!is.null(d) && is.matrix(d) && ncol(d)>1) {
-      m_mode= 2
+      m_mode= DS.MULTI_D
       M = ncol(d)
       if(checks){
         assert_that(!inherits(d, "tbl")) #TODO: Could silently conver
@@ -114,7 +175,7 @@ get_sample_type <- function(y, X, d=NULL, checks=FALSE) {
       }
     }
     else if(!is.null(d) && is.matrix(y) && ncol(y)>1) {
-      m_mode= 3
+      m_mode= DS.MULTI_Y
       M = ncol(y)
       N = nrow(X)
       if(checks){
@@ -123,7 +184,7 @@ get_sample_type <- function(y, X, d=NULL, checks=FALSE) {
       }
     }
     else {
-      m_mode= 0
+      m_mode= DS.SINGLE
       M=1    
       if(checks)
         assert_that(is.null(d) || length(d)==N, length(y)==N)
@@ -135,15 +196,28 @@ get_sample_type <- function(y, X, d=NULL, checks=FALSE) {
 }
 
 check_M_K <- function(M, m_mode, K, X_aux, d_aux) {
-  if(m_mode==1) {
+  if(m_mode==DS.MULTI_SAMPLE) {
     assert_that(length(X_aux)==M, is.null(d_aux) || length(d_aux)==M)
     for(m in 1:M) assert_that(ncol(X_aux[[m]])==K)
   }
   else {
     assert_that(ncol(X_aux)==K)
-    if(m_mode==2) assert_that(ncol(d_aux)==M)
+    if(m_mode==DS.MULTI_D) assert_that(ncol(d_aux)==M)
   }
 } 
+
+# Multi-sample wrappers --------------------
+
+#length of N is M (so even if same sample)
+nrow_m <- function(X, M) {
+  if(is_sep_sample(X)) {
+    return(sapply(X, nrow))
+  }
+  N = nrow(X)
+  if(M==1) return(N)
+  
+  return(rep(N, M))
+}
 
 # Return M-list if mode_m==1 else sample
 sample_m <- function(ratio, N, M_mult) {
@@ -154,7 +228,7 @@ sample_m <- function(ratio, N, M_mult) {
   return(lapply(N, function(N_s) sample(N_s, N_s*ratio, replace=TRUE)))
 }
 
-#assumes separate samples if m_mode==1
+#assumes separate samples if m_mode==DS.MULTI_SAMPLE
 subsample_m <- function(y, X, d, sample) {
   M_mult = is_sep_sample(X)
   if(!M_mult) {
@@ -192,15 +266,27 @@ split_sample_m <- function(y, X, d, index_tr) {
   return(list(y_tr, y_es, X_tr, X_es, d_tr, d_es, N_est))
 }
 
-
-gen_folds_m <-function(y, folds, m_mode, M) {
-  if(m_mode!=1) {
+gen_folds_m <-function(y, nfolds, m_mode) {
+  if(m_mode!=DS.MULTI_SAMPLE) {
     if(is.list(y)) y = y[[1]]
     if(is.matrix(y)) y = y[,1]
     
-    return(gen_folds(y, folds))
+    return(gen_folds(y, nfolds))
   }
-  return(lapply(1:M, function(m) gen_folds(y[[m]], folds[[m]])))
+  M = length(y)
+  return(lapply(1:M, function(m) gen_folds(y[[m]], nfolds)))
+}
+
+foldlists_to_foldids_m <- function(folds_ret, m_mode) {
+  if(m_mode!=DS.MULTI_SAMPLE) return(foldlists_to_foldids(folds_ret$indexOut))
+  
+  return(lapply(folds_ret, function(f_ret) foldlists_to_foldids(f_ret$indexOut)))
+}
+
+foldids_to_foldlists_m <- function(foldids, nfolds, m_mode) {
+  if(m_mode!=DS.MULTI_SAMPLE) return(foldids_to_foldlists(foldids, nfolds))
+  
+  return(lapply(foldids, function(f_ids) foldids_to_foldlists(f_ids, nfolds)))
 }
 
 split_sample_folds_m <- function(y, X, d, folds_ret, f) {
@@ -222,16 +308,44 @@ fit_and_residualize_m <- function(est_plan, X_tr, y_tr, d_tr, cv_folds, y_es, X_
   if(!is_sep_estimators(m_mode))
     return(fit_and_residualize(est_plan, X_tr, y_tr, d_tr, cv_folds, y_es, X_es, d_es, verbosity, dim_cat))
   
-  if(m_mode==1) {
+  if(m_mode==DS.MULTI_SAMPLE) {
     for(m in 1:M)
-      list[est_plan[[m]], y_tr[[m]], d_tr[[m]], y_es[[m]], d_es[[m]]] = fit_and_residualize(est_plan[[m]], X_tr[[m]], y_tr[[m]], d_tr[[m]], cv_folds, y_es[[m]], X_es[[m]], d_es[[m]], verbosity, dim_cat)
+      list[est_plan[[m]], y_tr[[m]], d_tr[[m]], y_es[[m]], d_es[[m]]] = fit_and_residualize(est_plan[[m]], X_tr[[m]], y_tr[[m]], d_tr[[m]], cv_folds[[m]], y_es[[m]], X_es[[m]], d_es[[m]], verbosity, dim_cat)
     return(list(est_plan, y_tr, d_tr, y_es, d_es))
   }
   
+  #m_mode==DS.MULTI_Y
   #We overwrite the d's
   for(m in 1:M)
     list[est_plan[[m]], y_tr[,m], d_tr, y_es[,m], d_es] = fit_and_residualize(est_plan[[m]], X_tr, y_tr[,m], d_tr, cv_folds, y_es[,m], X_es, d_es, verbosity, dim_cat)
   return(list(est_plan, y_tr, d_tr, y_es, d_es))
+}
+
+Param_Est_m <- function(est_plan, y_cell, d_cell, X_cell, sample=sample, ret_var=FALSE, m_mode) {
+  if(!is_sep_estimators(m_mode)) { #single estimation
+    return(est_params(est_plan, y_cell, d_cell, X_cell, sample=sample, ret_var))
+  }
+  if(m_mode==DS.MULTI_SAMPLE){
+    if(ret_var) {
+      rets = mapply(function(est_plan_s, y_cell_s, d_cell_s, X_cell_s) 
+        unlist(est_params(est_plan_s, y_cell_s, d_cell_s, X_cell_s, sample=sample, ret_var)), 
+        est_plan, y_cell, d_cell, X_cell, SIMPLIFY = TRUE)
+      return(list(param_ests=rets[1,], var_ests=rets[2,]))
+    }
+    rets = mapply(function(est_plan_s, y_cell_s, d_cell_s, X_cell_s) 
+      est_params(est_plan_s, y_cell_s, d_cell_s, X_cell_s, sample=sample, ret_var)[[1]], 
+      est_plan, y_cell, d_cell, X_cell, SIMPLIFY = TRUE)
+    return(list(param_ests = rets))
+  }
+  
+  #m_mode==DS.MULTI_Y
+  M = ncol(y_cell)
+  if(ret_var) {
+    rets = sapply(1:M, function(m) unlist(est_params(est_plan[[m]], y_cell[,m], d_cell, X_cell, sample=sample, ret_var)))
+    return(list(param_ests=rets[1,], var_ests=rets[2,]))
+  }
+  rets = sapply(1:M, function(m) est_params(est_plan[[m]], y_cell[,m], d_cell, X_cell, sample=sample, ret_var)[[1]])
+  return(list(param_ests = rets))
 }
 
 
@@ -257,10 +371,10 @@ gen_holdout_interaction_m <- function(factors_by_dim, k, M_mult) {
   return(lapply(factors_by_dim, function(f_by_dim) gen_holdout_interaction(f_by_dim, k)))
 }
 
-is_factor_dim_k <- function(X, k, M_mult) {
+is_factor_dim_k_m <- function(X, k, M_mult) {
   if(!M_mult)
-    return(is.factor(X[, k]))
-  return(return(is.factor(X[[1]][, k])))
+    return(is_factor_dim_k(X, k))
+  return(is_factor_dim_k(X[[1]], k))
 }
 
 droplevels_m <- function(factor, M_mult) {
@@ -268,24 +382,19 @@ droplevels_m <- function(factor, M_mult) {
   return(lapply(factor, droplevels))
 }
 
-min_sum <- function(data, M_mult) {
-  if(!M_mult) return(sum(data))
-  return(min(sapply(data, sum)))
-}
-
 apply_mask_m <- function(data, mask, M_mult) {
   if(is.null(data)) return(NULL)
   if(!M_mult) return(row_sample(data, mask))
   return(mapply(function(data_s, mask_s) row_sample(data_s, mask_s), data, mask, SIMPLIFY=FALSE))
 }
-any_const_m <- function(d, shifted, shifted_cell_factor_nk) {
-  if(m_mode==0 || m_mode==3)
+any_const_m <- function(d, shifted, shifted_cell_factor_nk, m_mode) {
+  if(m_mode==DS.SINGLE || m_mode==DS.MULTI_Y)
     return(any(by(d[shifted], shifted_cell_factor_nk, FUN=const_vect)))
-  if(m_mode==1)
+  if(m_mode==DS.MULTI_SAMPLE)
     return( any(mapply(function(d_s, shifted_s, shifted_cell_factor_nk_s)
       any(by(d_s[shifted_s], shifted_cell_factor_nk_s, FUN=const_vect))
       , d, shifted, shifted_cell_factor_nk ))  )
-  #m_mode==3
+  #m_mode==DS.MULTI_D
   return( any(apply(d, 2, function(d_s)  any(by(d_s[shifted], shifted_cell_factor_nk, FUN=const_vect)) ))  )
 }
 gen_cat_window_mask_m <- function(X, k, window) {
@@ -314,11 +423,6 @@ gen_cont_win_split_cond_m <- function(X, win_mask, k, X_k_cut) {
     return(factor(X[win_mask, k] <= X_k_cut, levels=c(FALSE, TRUE)))
   return(mapply(function(X_s, win_mask_s) factor(X_s[win_mask_s, k] <= X_k_cut, levels=c(FALSE, TRUE)), X, win_mask, SIMPLIFY=FALSE))
 } 
-
-replace_k_factor <- function(base_facts, k, new_fact) {
-  base_facts[[k]] = new_fact
-  return(base_facts)
-}
 
 replace_k_factor_m <- function(base_facts, k, new_fact, M_mult) {
   if(!M_mult) {

@@ -2,7 +2,7 @@
 % Please edit documentation in R/grid_partition.R
 \name{print.grid_partition}
 \alias{print.grid_partition}
-\title{print.grid_partition}
+\title{Print grid_partition}
 \usage{
 \method{print}{grid_partition}(x, do_str = TRUE, drop_unsplit = TRUE, digits = NULL, ...)
 }
@@ -21,5 +21,5 @@
 string (and displayed)
 }
 \description{
-print.grid_partition
+Prints a data.frame with options
 }

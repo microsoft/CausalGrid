@@ -2,13 +2,12 @@
 % Please edit documentation in R/grid_partition.R
 \name{fit_partition}
 \alias{fit_partition}
-\title{fit_partition}
+\title{Fit grid_partition}
 \usage{
 fit_partition(
   y,
   X,
   d = NULL,
-  N_est = NA,
   X_aux = NULL,
   d_aux = NULL,
   max_splits = Inf,
@@ -16,30 +15,27 @@ fit_partition(
   min_size = 3,
   cv_folds = 2,
   verbosity = 0,
-  pot_break_points = NULL,
+  breaks_per_dim = NULL,
   potential_lambdas = NULL,
   X_range = NULL,
-  lambda.1se = FALSE,
   bucket_min_n = NA,
   bucket_min_d_var = FALSE,
   obj_fn,
   est_plan,
   partition_i = NA,
   pr_cl = NULL,
-  valid_fn = NULL,
-  bump_B = 0,
-  bump_ratio = 1
+  bump_samples = 0,
+  bump_ratio = 1,
+  ...
 )
 }
 \arguments{
-\item{y}{Nx1 matrix of outcome (label/target) data}
+\item{y}{Nx1 matrix of outcome (label/target) data. With multiple core estimates see Details below.}
 
-\item{X}{NxK matrix of features (covariates)}
+\item{X}{NxK matrix of features (covariates). With multiple core estimates see Details below.}
 
 \item{d}{(Optional) NxP matrix (with colnames) of treatment data. If all equally important they 
-should be normalized to have the same variance.}
-
-\item{N_est}{N of samples in the Estimation dataset}
+should be normalized to have the same variance. With multiple core estimates see Details below.}
 
 \item{X_aux}{aux X sample to compute statistics on (OOS data)}
 
@@ -51,39 +47,70 @@ should be normalized to have the same variance.}
 
 \item{min_size}{Minimum cell size when building full grid, cv_tr will use (F-1)/F*min_size, cv_te doesn't use any.}
 
-\item{cv_folds}{Number of Folds}
+\item{cv_folds}{Number of CV Folds or a vector of foldids. 
+If m_mode==DS.MULTI_SAMPLE, then a list with foldids per Dataset.}
 
-\item{verbosity}{If >0 prints out progress bar for each split}
+\item{verbosity}{0 print no message. 
+1 prints progress bar for high-level loops. 
+2 prints detailed output for high-level loops. 
+Nested operations decrease verbosity by 1.}
 
-\item{pot_break_points}{k-dim list of vectors giving potential split points}
+\item{breaks_per_dim}{NULL (for all possible breaks); 
+ K-length vector with # of break (chosen by quantiles); or 
+ K-dim list of vectors giving potential split points for non-categorical 
+   variables (can put c(0) for categorical). 
+Similar to 'discrete splitting' in CausalTree though their they do separate split-points 
+for treated and controls.}
 
 \item{potential_lambdas}{potential lambdas to search through in CV}
 
-\item{X_range}{list of min/max for each dimension}
-
-\item{lambda.1se}{Use the 1se rule to pick the best lambda}
+\item{X_range}{list of min/max for each dimension (e.g., from \code{\link{get_X_range}})}
 
 \item{bucket_min_n}{Minimum number of observations needed between different split checks}
 
 \item{bucket_min_d_var}{Ensure positive variance of d for the observations between different split checks}
 
-\item{obj_fn}{Whether to use the emse_hat or mse_hat}
+\item{obj_fn}{Default is \code{\link{eval_mse_hat}}. User-provided must allow same signature.}
 
-\item{est_plan}{Estimation plan.}
+\item{est_plan}{\link{EstimatorPlan}.}
 
 \item{partition_i}{Default NA. Use this to avoid CV}
 
-\item{pr_cl}{Default NULL. Parallel cluster (used for fit_partition_full)}
+\item{pr_cl}{Default NULL. Parallel cluster. Used for:\enumerate{
+  \item CVing the optimal lambda, 
+  \item fitting full tree (at each split going across dimensions), 
+  \item fitting trees over the bumped samples
+}}
 
-\item{valid_fn}{Function to quickly check if partition could be valid. User can override.}
-
-\item{bump_B}{Number of bump bootstraps}
+\item{bump_samples}{Number of bump bootstraps (default 0), or list of such length where each items is a bootstrap sample.
+If m_mode==DS.MULTI_SAMPLE then each item is a sublist with such bootstrap samples over each dataset.}
 
 \item{bump_ratio}{For bootstraps the ratio of sample size to sample (between 0 and 1, default 1)}
 }
 \value{
-list(partition, lambda)
+An object.
+        \item{partition}{Grid Partition (type=\code{\link{grid_partition}})}
+        \item{is_obj_val_seq}{Full sequence of in-sample objective function values}
+        \item{complexity_seq}{Full sequence of partition complexities (num_cells - 1)}
+        \item{partition_i}{Index of partition chosen}
+        \item{partition_seq}{Full sequence of Grid Partitions}
+        \item{split_seq}{Full sequence of splits (type=\code{\link{partition_split}})}
+        \item{lambda}{lambda chosen}
+        \item{folds_index_out}{List of the held-out observations for each fold (e.g., we might have generated them)}
 }
 \description{
-CV Fit partition on some data, finds best lambda and then re-fits on full data.
+Fit partition on some data, optionally finding best lambda using CV and then re-fiting on full data.
 }
+\details{
+Returns the partition and information about the fitting process
+}
+\section{Multiple estimates}{
+
+With multiple core estimates (M) there are 3 options (the first two have the same sample across treatment effects).\enumerate{
+ \item DS.MULTI_SAMPLE: Multiple pairs of (Y_{m},W_{m}). y,X,d are then lists of length M. Each element then has the typical size
+    The N_m may differ across m. The number of columns of X will be the same across m.
+ \item DS.MULTI_D: Multiple treatments and a single outcome. d is then a NxM matrix.
+ \item DS.MULTI_Y: A single treatment and multiple outcomes. y is then a NXM matrix.
+}
+}
+

@@ -5,6 +5,15 @@
 \alias{CausalGrid}
 \title{CausalGrid: A package for subgroup effects}
 \description{
-Intervals are (a,b], and [a,b] for the lowest. A split at x means <= and >
-We randomize in generating train/est and trtr/trcv splits. Possibly cv.glmnet and cv.gglasso as well.
+This package helps you analyze subgroups. The main entry point is \code{\link{fit_estimate_partition}}.
+}
+\details{
+Segment definition: Intervals are (a,b], and [a,b] for the lowest. A split at x means <= and >. \code{\link{fit_estimate_partition}}.
+
+Randomization: This package should be able to be run with no randomness. With simple params the following places randomize. \itemize{
+  \item  Generating train/est splits. Can be overridden by providing \code{tr_split}
+  \item  Generating trtr/trcv splits. Can be overridden by providing \code{cv_folds}
+  \item  Bumping samples. Can be overriddgen by providing list of samples for  \code{bump_samples}
+  \item  Estimation plans: Provide ones ( \code{lm_est(lasso=TRUE,...)} and  \code{grid_rf}) use  \code{cv_folds}. User-made ones should too. 
+}
 }

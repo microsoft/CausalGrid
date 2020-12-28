@@ -1,5 +1,5 @@
 ---
-title: "vignette"
+title: "High-Level Analysis"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{vignette}
@@ -18,16 +18,120 @@ knitr::opts_chunk$set(
 library(CausalGrid)
 ```
 
-Let's get some fake data
+Some common parameters
 ```{r}
+set.seed(1337)
 N = 1000
-X = matrix(rnorm(N), ncol=1)
-d = rbinom(N, 1, 0.5)
-tau = as.integer(X[,1]>0)
-y = d*tau + rnorm(1000, 0, 0.0001)
+K = 3
+err_sd = 0.0001
 ```
 
-Here's how you use the package
+# Simple Example
+
+Let's get some fake data
 ```{r}
-est_part = fit_estimate_partition(y, X, d)
+X = matrix(rnorm(N*K), ncol=K) #Features for splitting partition
+d = rbinom(N, 1, 0.5) #treatment
+tau = as.integer(X[,1]>0)*2-1 #true treatment effect
+y = d*tau + rnorm(N, 0, err_sd) #outcome
 ```
+
+To save time and avoid cells with too few observations, we only look for a few splits per dimension. 
+```{r}
+est_part = fit_estimate_partition(y, X, d, breaks_per_dim=5)
+```
+
+In small-sample, even CV-picked complexity may choose a partition that includes final splits that only provide marginal improvements.
+
+```{r}
+print(paste("CV picked partition index: ", est_part$partition_i))
+print(paste("In-sample Objective function values: ", paste(est_part$is_obj_val_seq, collapse=" ")))
+```
+Let's re-do this but just get the second in the sequence. (An alternative, and generally good practice, is to specify `min_size` # of observations for each cell)
+```{r}
+est_part = fit_estimate_partition(y, X, d, breaks_per_dim=5, importance_type="interaction", partition_i=2)
+```
+
+
+Show the partition
+```{r}
+print(est_part)
+```
+
+Compare this with the average treatment effect for the whole and estimation-only samples
+```{r}
+est_part$full_stat_df
+```
+
+How important are each of the dimensions of X for the objective function? We refit the model without each dimension and see the change in the objective function
+```{r}
+est_part$importance_weights
+```
+
+Are there any interactions between the importances? (That is if we remove X1, does the importance of X2 change? This is done by dropping pairs of featurs at a time and see how they differ from single-feature droppings)
+```{r}
+est_part$interaction_weights
+```
+
+Get the observation-level estimated treatment effects.
+```{r}
+tau_hat = predict_te.estimated_partition(est_part, new_X=X)
+```
+
+With many estimates, we may wish to account for multiple testing when checking if "there are any negative (or positive) effects"
+```{r}
+any_neg = test_any_sign_effect(est_part, check_negative=T)
+print(paste("Adjusted 1-side p-values testing if negative:", any_neg$pval1s_fdr))
+```
+
+# Improving the partition
+We can improve the partition by controlling for X's (either local-linearly or global-flexibly) and using bootstrap "bumping"
+```{r}
+est_part = fit_estimate_partition(y, X, d, breaks_per_dim=5, ctrl_method = "LassoCV", bump_samples = 20, partition_i=2)
+```
+`LassoCV` is a local-linear approach and we can use the global-flexible approach by setting `ctrl_method="rf"`.
+
+Parallel-processing the outer-loops
+```{r}
+#def.cl.cores = 3
+#cl <- makeCluster(getOption("cl.cores", def.cl.cores))
+#fit_estimate_partition(..., pr_cl=cl)
+```
+
+# Multiple core estimates
+We can generate a single partition that works across multiple core estimates. We have three options. 
+
+1) Multiple outcomes, but same sample (single treatment)
+```{r}
+tau2 = as.integer(X[,2]>0)*2-1
+y2_yM = d*tau2 + rnorm(N, 0, err_sd)
+y_yM = cbind(y, y2_yM)
+est_part_yM = fit_estimate_partition(y_yM, X, d, breaks_per_dim=5, partition_i = 3)
+print(est_part_yM)
+```
+
+2) Multiple treatments, but same sample (single outcome)
+```{r}
+d2 = rbinom(N, 1, 0.5)
+d_dM = cbind(d, d2)
+y_dM =  d*tau + d2*tau2 + rnorm(N, 0, err_sd)
+est_part_dM = fit_estimate_partition(y_dM, X, d_dM, breaks_per_dim=5, partition_i = 3)
+print(est_part_dM)
+```
+
+3) Multiple separate samples, each having a single outcome and treatment
+```{r}
+y2_MM = d2*tau2 + rnorm(N, 0, err_sd)
+y_MM = list(y, y2_MM)
+d_MM = list(d, d2)
+X_MM = list(X, X)
+est_part_MM = fit_estimate_partition(y_MM, X_MM, d_MM, breaks_per_dim=5, partition_i = 3)
+print(est_part_MM)
+```
+
+
+# Minor things to add
+- Graphing (`plot_2D_partition.estimated_partition(grid_fit, X_names_2D)`)
+- Dealing with factors
+- Implementing own control approach
+- Usage for mean-fitting

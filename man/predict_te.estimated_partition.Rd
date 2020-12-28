@@ -2,7 +2,7 @@
 % Please edit documentation in R/fit_estimate.R
 \name{predict_te.estimated_partition}
 \alias{predict_te.estimated_partition}
-\title{predict_te.estimated_partition}
+\title{Generate predicted estimates per observations}
 \usage{
 predict_te.estimated_partition(obj, new_X)
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/grid_partition.R
 \name{get_factor_from_partition}
 \alias{get_factor_from_partition}
-\title{get_factor_from_partition}
+\title{Get factor describing cell number fo each observation}
 \usage{
 get_factor_from_partition(partition, X, X_range = NULL)
 }
@@ -17,5 +17,6 @@ get_factor_from_partition(partition, X, X_range = NULL)
 Factor
 }
 \description{
-get_factor_from_partition
+Note that currently if X has values more extreme (e.g., for numeric or factor levels ) than was used to generate the partition
+then we will return NA unless you provide and updated X_range.
 }
