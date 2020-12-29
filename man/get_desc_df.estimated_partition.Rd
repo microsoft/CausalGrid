@@ -24,7 +24,7 @@ get_desc_df.estimated_partition(
 \item{import_order}{should we use importance ordering or input ordering (default)}
 }
 \value{
-data.frame
+data.frame with columns: partitionin columns, {N_est, param_ests, pval} per estimate
 }
 \description{
 Get statistics for each cell (feature boundary, and estimated cell stats)

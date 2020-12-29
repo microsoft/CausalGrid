@@ -7,7 +7,7 @@
 fit_on_train(obj, X_tr, y_tr, d_tr, cv_folds, verbosity = 0, dim_cat = c())
 }
 \arguments{
-\item{obj}{an EstimatorPlan object}
+\item{obj}{an \code{EstimatorPlan} object}
 
 \item{X_tr}{N_trxK matrix}
 
@@ -25,5 +25,5 @@ fit_on_train(obj, X_tr, y_tr, d_tr, cv_folds, verbosity = 0, dim_cat = c())
 Updated EstimatorPlan object
 }
 \description{
-Fit estimator_plan on training sample
+Initializes the estimator (if necessary) on the \code{train} sample.
 }

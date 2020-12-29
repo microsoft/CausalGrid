@@ -2,6 +2,9 @@
 # - To change parallel/single-threaded, search for PARALLEL comments
 # - There is a "suffix" for output files so that one can test w/o overwritting
 
+# TODO:
+# - Switch to using my_apply from package so that I don't need separate doparallel package
+
 library(gsubfn)
 library(devtools)
 suppressPackageStartupMessages(library(data.table))
@@ -32,7 +35,7 @@ nfolds = 5
 minsize=25
 
 #Sim parameters
-S = 3 #3 100, TODO: Is this just 1!?
+S = 100 #3 100, TODO: Is this just 1!?
 Ns = c(500, 1000) #c(500, 1000)
 D = 4 #3
 Ks = c(2, 2, 10, 20)
@@ -96,10 +99,10 @@ sim_eval_ct <- function(data1, data2, good_mask, honest=FALSE) {
 sim_cg_fit <- function(y, X, w, tr_sample, verbosity=0, honest=FALSE, do_rf=FALSE, num.threads=rf.num.threads, ...) {
   set.seed(my_seed)
   if(do_rf) {
-    return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, honest=honest, ctrl_method=grid_rf(num.threads=num.threads), ...))
+    return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, honest=honest, ctrl_method=grid_rf(num.threads=num.threads), nsplits_k_warn_limit=NA, ...))
   }
   else {
-    return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, honest=honest, ...))
+    return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, honest=honest, nsplits_k_warn_limit=NA, ...))
   }
 }
 

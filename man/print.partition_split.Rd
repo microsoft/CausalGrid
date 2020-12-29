@@ -15,5 +15,5 @@
 None
 }
 \description{
-Print partition_split
+Prints information for a \code{partition_split}
 }

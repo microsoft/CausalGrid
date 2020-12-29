@@ -27,3 +27,13 @@ Change the complexity level of the partition and re-estimate cell statistics.
 \details{
 Note: doesn't update the importance weights
 }
+\section{Multiple estimates}{
+
+With multiple core estimates (M) there are 3 options (the first two have the same sample across treatment effects).\enumerate{
+ \item DS.MULTI_SAMPLE: Multiple pairs of (Y_{m},W_{m}). y,X,d are then lists of length M. Each element then has the typical size
+    The N_m may differ across m. The number of columns of X will be the same across m.
+ \item DS.MULTI_D: Multiple treatments and a single outcome. d is then a NxM matrix.
+ \item DS.MULTI_Y: A single treatment and multiple outcomes. y is then a NXM matrix.
+}
+}
+

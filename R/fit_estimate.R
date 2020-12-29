@@ -85,6 +85,7 @@ lcl_levels <- function(cell_factor) {
   return(list(lvls, length(lvls[[1]])))
 }
 
+# Inherited params: y, X, d
 #' Evaluate the MSE_hat objective function
 #' 
 #' Evaluate the MSE_hat objective function over the cells for the sample
@@ -140,22 +141,21 @@ eval_mse_hat <-function(y, X, d, N_est, partition=NULL, cell_factor=NULL, est_pl
   return(c(val, N_cell_empty, N_cell_error))
 }
 
-
+# Inherited params: y, X, d
 #' Estimate parameters across the cells
 #' 
 #' Estimate the parameters (including standard errors) across the cells in the sample.
+#' 
+#' @inheritSection fit_partition Multiple estimates
 #'
-#' @param y Nx1 matrix of outcome (label/target) data
-#' @param X NxK matrix of features (covariates)
-#' @param d (Optional) NxP matrix (with colnames) of treatment data. If all equally important they should 
-#'          be normalized to have the same variance.
 #' @param partition (Optional, need this or cell_factor) partitioning returned from fit_estimate_partition
 #' @param cell_factor (Optional, need this or partition) 
 #' @param estimator_var (Optional) a function with signature list(param_est, var_est) = function(y, d) 
 #'                      (where if no d then can pass in null). If NULL then will choose between built-in 
 #'                      mean-estimator and scalar_te_estimator
-#' @param est_plan Estimation plan
-#' @param alpha Alpha
+#' @param est_plan Estimator plan
+#' @param alpha Significance threshold
+#' @inheritParams fit_partition
 #' 
 #' @return list
 #' \item{cell_factor}{Factor with levels for each cell for X. Length N.}
@@ -211,21 +211,22 @@ get_dofs <- function(est_plan, M, m_mode) {
   return(dof)
 }
 
-#' est_full_stats
+# Inherited params: y, X, d, est_plan, alpha
+#' Estimate stats on the full samples
+#' 
+#' Estimates the parameters on the full and \code{est} samples
+#' 
+#' @inheritSection fit_partition Multiple estimates
 #'
-#' @param y y
-#' @param d d
-#' @param X X
-#' @param est_plan  est_plan
-#' @param y_es y_es
-#' @param d_es d_es
-#' @param X_es X_es
-#' @param index_tr index_tr
-#' @param alpha alpha
+#' @param y_es y for \code{est} sample. Omit if providing \code{index_tr}.
+#' @param X_es X for \code{est} sample. Omit if providing \code{index_tr}.
+#' @param d_es d for \code{est} sample. Omit if providing \code{index_tr}.
+#' @param index_tr Indexes of the \code{train} sample. Can be omitted if providing \code{y_es}, \code{X_es}, \code{d_es}.
+#' @inheritParams est_cell_stats
 #'
 #' @return Stats df
 #' @export
-est_full_stats <- function(y, d, X, est_plan, y_es=NULL, d_es=NULL, X_es=NULL, index_tr=NULL, alpha=0.05) {
+est_full_stats <- function(y, X, d, est_plan, y_es=NULL, X_es=NULL, d_es=NULL, index_tr=NULL, alpha=0.05) {
   list[M, m_mode, N, K] = get_sample_type(y, X, d, checks=TRUE)
   X = ensure_good_X(X)
   
@@ -468,7 +469,7 @@ else eval_mse_hat
   if(verbosity>0) cat("Estimating cell statistics on estimation set\n")
   cell_stats = est_cell_stats(y_es, X_es, d_es, partition, est_plan=est_plan, alpha=alpha)
   
-  full_stat_df = est_full_stats(y, d, X, est_plan, y_es=y_es, d_es=d_es, X_es=X_es)
+  full_stat_df = est_full_stats(y, X, d, est_plan, y_es=y_es, X_es=X_es, d_es=d_es)
   
   return(list(partition=partition, is_obj_val_seq=is_obj_val_seq, complexity_seq=complexity_seq, partition_i=partition_i, partition_seq=partition_seq, split_seq=split_seq, lambda=lambda, cv_foldid=cv_foldid, cell_stats=cell_stats, full_stat_df=full_stat_df, est_plan=est_plan))
 }
@@ -538,11 +539,13 @@ fit_estimate_partition <- function(y, X, d=NULL, tr_split = 0.5, max_splits=Inf,
   valid_fn = NULL
   lambda.1se=FALSE
   honest=FALSE
+  nsplits_k_warn_limit=200
   if(length(extra_params)>0) {
     if("valid_fn" %in% names(extra_params)) valid_fn = extra_params[['valid_fn']]
     if("lambda.1se" %in% names(extra_params)) lambda.1se = extra_params[['lambda.1se']]
     if("honest" %in% names(extra_params)) honest = extra_params[['honest']]
-    assert_that(all(names(extra_params) %in% c("valid_fn", "lambda.1se", "honest")))
+    if("nsplits_k_warn_limit" %in% names(extra_params)) nsplits_k_warn_limit = extra_params[['nsplits_k_warn_limit']]
+    assert_that(all(names(extra_params) %in% c("valid_fn", "lambda.1se", "honest", "nsplits_k_warn_limit")))
   }
   list[M, m_mode, N, K] = get_sample_type(y, X, d, checks=TRUE)
   if(is_sep_sample(X) && length(tr_split)>1) {
@@ -592,7 +595,7 @@ fit_estimate_partition <- function(y, X, d=NULL, tr_split = 0.5, max_splits=Inf,
                                         partition_i=partition_i, verbosity=verbosity, breaks_per_dim=breaks_per_dim, 
                                         bucket_min_n=bucket_min_n, bucket_min_d_var=bucket_min_d_var, honest=honest, 
                                         pr_cl=pr_cl, alpha=alpha, bump_samples=bump_samples, bump_ratio=bump_ratio, M=M, m_mode=m_mode, 
-                                        dim_cat=dim_cat, est_plan=est_plan, N_est=N_est, valid_fn=valid_fn)
+                                        dim_cat=dim_cat, est_plan=est_plan, N_est=N_est, valid_fn=valid_fn, nsplits_k_warn_limit=nsplits_k_warn_limit)
   list[partition, is_obj_val_seq, complexity_seq, partition_i, partition_seq, split_seq, lambda, cv_foldid, cell_stats, full_stat_df, est_plan] = main_ret
   
   importance_weights <- interaction_weights <- NULL
@@ -639,6 +642,8 @@ fit_estimate_partition <- function(y, X, d=NULL, tr_split = 0.5, max_splits=Inf,
 }
 
 #' is object estimated_partition
+#' 
+#' Tests whether the object is an \code{estimated_partition} object.
 #'
 #' @param x an R object
 #'
@@ -661,6 +666,8 @@ num_cells.estimated_partition <- function(obj) {
 #' Change the complexity level of the partition and re-estimate cell statistics. 
 #' 
 #' Note: doesn't update the importance weights
+#' 
+#' @inheritSection fit_partition Multiple estimates
 #'
 #' @param fit estimated_partition 
 #' @param partition_i partition_i - 1 is the last include in split_seq included in new partition
@@ -690,9 +697,10 @@ change_complexity <- function(fit, y, X, d=NULL, partition_i) {
 #' @param do_str If True, use a string like "(a, b]", otherwise have two separate columns with a and b
 #' @param drop_unsplit If True, drop columns for variables overwhich the partition did not split
 #' @param digits digits Option (default is NULL)
-#' @param import_order should we use importance ordering or input ordering (default)
+#' @param import_order Should we use importance ordering (most important on the left) or input ordering (default) for features.
+#'                     Rows will be ordered so that the right-most will change most frequently.
 #'
-#' @return data.frame
+#' @return data.frame with columns: partitionin columns, {N_est, param_ests, pval} per estimate
 #' @export 
 get_desc_df.estimated_partition <- function(obj, do_str=TRUE, drop_unsplit=TRUE, digits=NULL, import_order=FALSE) {
   M = obj$M
@@ -703,7 +711,10 @@ get_desc_df.estimated_partition <- function(obj, do_str=TRUE, drop_unsplit=TRUE,
   if(drop_unsplit) {
     imp_weights = imp_weights[obj$partition$nsplits_by_dim>0]
   }
-  if(import_order) part_df = part_df[, order(-1* imp_weights)]
+  if(import_order) {
+    part_df = part_df[, order(-1* imp_weights)]
+    part_df = part_df[do.call("order",part_df),] #re-sorts so that rightward changes most frequently
+  } 
   
   return(cbind(part_df, stats))
 }

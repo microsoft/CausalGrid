@@ -59,10 +59,13 @@ const_vectr <- function(x) {
 }
 
 #' Get X_range
+#' 
+#' Gets the "range" of each variable in X. For numeric variables this is (min, max).
+#' For factors this means vector of levels.  
 #'
 #' @param X data
 #'
-#' @return list of length K with each element being a c(min, max) along that dimension
+#' @return list of length K with each element being the "range" along that dimension
 #' @export
 get_X_range <- function(X) {
   if(is_sep_sample(X))
@@ -87,6 +90,8 @@ get_X_range <- function(X) {
 }
 
 #' Return number of cells for the object
+#' 
+#' Returns the number of cells for the an object
 #'
 #' @param obj Object
 #'
@@ -125,7 +130,7 @@ dummy_X_range <- function(K) {
 #' With data, one can determine the cell for each observation using \code{\link{get_factor_from_partition}}
 #'
 #' @param X_range Such as from \code{\link{get_X_range}}
-#' @param varnames 
+#' @param varnames Names of the X-variables
 #'
 #' @return Grid Partition
 #' @export
@@ -149,6 +154,8 @@ grid_partition <- function(X_range, varnames=NULL) {
 }
 
 #' Is grid_partition
+#' 
+#' Test whether an object is an \code{grid_function}
 #'
 #' @param x an R object
 #'
@@ -178,6 +185,8 @@ segment_indexes_from_cell_i <- function(cell_i, n_segments) {
 }
 
 #' Get descriptive data.frame for grid_partition
+#' 
+#' A dataset with rows for each cell and columns defining partitioning
 #'
 #' @param partition Partition
 #' @param cont_bounds_inf If True, will put continuous bounds as -Inf/Inf. Otherwise will use X_range bounds
@@ -242,7 +251,7 @@ get_desc_df.grid_partition <- function(partition, cont_bounds_inf=TRUE, do_str=F
       str_data_k[cell_i] = if(k %in% partition$dim_cat) format_cell_cat(win, unsplit_cat_star, length(list_of_windows[[k]])) else format_cell_cont(win)
     }
     raw_data[[colnames[k]]] = cbind(raw_data_k) #make a list-column: https://stackoverflow.com/a/51308306
-    str_data[[colnames[k]]] = str_data_k
+    str_data[[colnames[k]]] = factor(str_data_k, levels=unique(str_data_k)) #will be in low-high order
   }
   desc_df = if(do_str) str_data else raw_data
   if(drop_unsplit) desc_df = desc_df[n_segs>1]
@@ -357,6 +366,8 @@ partition_split <- function(k, X_k_cut) {
 } 
 
 #' Is grid_partition_split
+#' 
+#' Tests whether or not an object is a \code{partition_split}.
 #'
 #' @param x an R object
 #'
@@ -368,6 +379,8 @@ is.grid_partition_split <- function(x){
 }
 
 #' Print partition_split
+#' 
+#' Prints information for a \code{partition_split}
 #'
 #' @param x Object
 #' @param ... Additional arguments. Unused.
@@ -1201,7 +1214,7 @@ fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, 
   do_cv = is.na(partition_i)
   
   if(is.null(X_range)) X_range = get_X_range(X)
-  if(!is.list(breaks_per_dim) && length(breaks_per_dim)==1) breaks_per_dim = getquantile_breaks(X, X_range, g=breaks_per_dim)
+  if(!is.list(breaks_per_dim) && length(breaks_per_dim)==1) breaks_per_dim = get_quantile_breaks(X, X_range, g=breaks_per_dim)
   if(is.null(valid_fn)) valid_fn = valid_partition
   
   if(verbosity>0) cat("Grid: Started.\n")

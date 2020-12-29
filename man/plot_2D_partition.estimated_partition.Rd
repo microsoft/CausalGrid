@@ -2,7 +2,7 @@
 % Please edit documentation in R/graphing.R
 \name{plot_2D_partition.estimated_partition}
 \alias{plot_2D_partition.estimated_partition}
-\title{plot_2D_partition.estimated_partition}
+\title{Create 2D plots of parameter estimates}
 \usage{
 plot_2D_partition.estimated_partition(grid_fit, X_names_2D)
 }
@@ -12,8 +12,8 @@ plot_2D_partition.estimated_partition(grid_fit, X_names_2D)
 \item{X_names_2D}{X_names_2D}
 }
 \value{
-ggplot2 object
+ggplot2 object or list of such objects
 }
 \description{
-plot_2D_partition.estimated_partition
+Creates a 2D plot of parameter estimates or a series of such slices if partition is across >2 features.
 }

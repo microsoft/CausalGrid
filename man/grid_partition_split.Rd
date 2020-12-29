@@ -13,7 +13,7 @@ is.grid_partition_split(x)
 Boolean
 }
 \description{
-Is grid_partition_split
+Tests whether or not an object is a \code{partition_split}.
 }
 \section{Functions}{
 \itemize{

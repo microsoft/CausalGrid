@@ -12,7 +12,7 @@ is.grid_partition(x)
 \arguments{
 \item{X_range}{Such as from \code{\link{get_X_range}}}
 
-\item{varnames}{}
+\item{varnames}{Names of the X-variables}
 
 \item{x}{an R object}
 }
@@ -25,6 +25,8 @@ True if x is a grid_partition
 Create a empty partition. Splits can be added using \code{\link{add_partition_split}}.
 Information about a split can be retrieved using \code{\link{num_cells}}, \code{\link{get_desc_df.grid_partition}} and \code{\link{print}}
 With data, one can determine the cell for each observation using \code{\link{get_factor_from_partition}}
+
+Test whether an object is an \code{grid_function}
 }
 \section{Functions}{
 \itemize{

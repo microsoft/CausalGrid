@@ -14,7 +14,7 @@ is.simple_est(x)
 
 \item{te_var_fn}{Treatment estimatino function when variance needed}
 
-\item{dof}{}
+\item{dof}{Degree-of-freedom correction (2 for intercept and treatment)}
 
 \item{x}{an R object}
 }
@@ -24,9 +24,9 @@ Estimation Plan
 Boolean
 }
 \description{
-Create a simple_est object
+A wrapper around a pair of estimator functions (w/ and w/o variance estimates)
 
-Is simple_est
+Tests whether oject is an \code{simple_est}.
 }
 \section{Functions}{
 \itemize{

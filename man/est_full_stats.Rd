@@ -2,42 +2,53 @@
 % Please edit documentation in R/fit_estimate.R
 \name{est_full_stats}
 \alias{est_full_stats}
-\title{est_full_stats}
+\title{Estimate stats on the full samples}
 \usage{
 est_full_stats(
   y,
-  d,
   X,
+  d,
   est_plan,
   y_es = NULL,
-  d_es = NULL,
   X_es = NULL,
+  d_es = NULL,
   index_tr = NULL,
   alpha = 0.05
 )
 }
 \arguments{
-\item{y}{y}
+\item{y}{Nx1 matrix of outcome (label/target) data. With multiple core estimates see Details below.}
 
-\item{d}{d}
+\item{X}{NxK matrix of features (covariates). With multiple core estimates see Details below.}
 
-\item{X}{X}
+\item{d}{(Optional) NxP matrix (with colnames) of treatment data. If all equally important they 
+should be normalized to have the same variance. With multiple core estimates see Details below.}
 
-\item{est_plan}{est_plan}
+\item{est_plan}{Estimator plan}
 
-\item{y_es}{y_es}
+\item{y_es}{y for \code{est} sample. Omit if providing \code{index_tr}.}
 
-\item{d_es}{d_es}
+\item{X_es}{X for \code{est} sample. Omit if providing \code{index_tr}.}
 
-\item{X_es}{X_es}
+\item{d_es}{d for \code{est} sample. Omit if providing \code{index_tr}.}
 
-\item{index_tr}{index_tr}
+\item{index_tr}{Indexes of the \code{train} sample. Can be omitted if providing \code{y_es}, \code{X_es}, \code{d_es}.}
 
-\item{alpha}{alpha}
+\item{alpha}{Significance threshold}
 }
 \value{
 Stats df
 }
 \description{
-est_full_stats
+Estimates the parameters on the full and \code{est} samples
 }
+\section{Multiple estimates}{
+
+With multiple core estimates (M) there are 3 options (the first two have the same sample across treatment effects).\enumerate{
+ \item DS.MULTI_SAMPLE: Multiple pairs of (Y_{m},W_{m}). y,X,d are then lists of length M. Each element then has the typical size
+    The N_m may differ across m. The number of columns of X will be the same across m.
+ \item DS.MULTI_D: Multiple treatments and a single outcome. d is then a NxM matrix.
+ \item DS.MULTI_Y: A single treatment and multiple outcomes. y is then a NXM matrix.
+}
+}
+

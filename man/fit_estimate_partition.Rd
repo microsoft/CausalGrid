@@ -116,6 +116,8 @@ True if x is an estimated_partition
 }
 \description{
 Split the data, one one side train/fit the partition using \code{\link{fit_partition}} and then on the other estimate subgroup effects.
+
+Tests whether the object is an \code{estimated_partition} object.
 }
 \section{Functions}{
 \itemize{

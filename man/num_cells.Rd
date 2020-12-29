@@ -19,7 +19,7 @@ num_cells(obj)
 Number of cells in partition (at least 1)
 }
 \description{
-Return number of cells for the object
+Returns the number of cells for the an object
 }
 \section{Methods (by class)}{
 \itemize{

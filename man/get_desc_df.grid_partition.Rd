@@ -30,5 +30,5 @@ get_desc_df.grid_partition(
 data.frame
 }
 \description{
-Get descriptive data.frame for grid_partition
+A dataset with rows for each cell and columns defining partitioning
 }

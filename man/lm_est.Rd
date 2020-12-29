@@ -22,9 +22,9 @@ Estimation plan
 Boolean
 }
 \description{
-create an lm_est object
+An estimator that can potentially control linearly for some features.
 
-Is lm_est
+Tests whether object is an \code{lm_est}.
 }
 \section{Functions}{
 \itemize{

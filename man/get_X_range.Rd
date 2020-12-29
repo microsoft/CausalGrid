@@ -10,8 +10,9 @@ get_X_range(X)
 \item{X}{data}
 }
 \value{
-list of length K with each element being a c(min, max) along that dimension
+list of length K with each element being the "range" along that dimension
 }
 \description{
-Get X_range
+Gets the "range" of each variable in X. For numeric variables this is (min, max).
+For factors this means vector of levels.
 }

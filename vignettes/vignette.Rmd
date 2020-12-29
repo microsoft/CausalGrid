@@ -83,6 +83,18 @@ With many estimates, we may wish to account for multiple testing when checking i
 any_neg = test_any_sign_effect(est_part, check_negative=T)
 print(paste("Adjusted 1-side p-values testing if negative:", any_neg$pval1s_fdr))
 ```
+```{r}
+tau_3 = (as.integer(X[,1]>0)*2-1) + (as.integer(X[,2]>0)*2-1)*2 + (as.integer(X[,3]>0)*2-1)*3
+y_3 = d*tau_3 + rnorm(N, 0, err_sd) #outcome
+est_part_3 = fit_estimate_partition(y_3, X, d, breaks_per_dim=5, partition_i=4)
+print(est_part_3)
+```
+```{r}
+plts = plot_2D_partition.estimated_partition(est_part_3, c("X1", "X2"))
+require(gridExtra)
+grid.arrange(plts[[1]], plts[[2]], ncol=2)
+```
+
 
 # Improving the partition
 We can improve the partition by controlling for X's (either local-linearly or global-flexibly) and using bootstrap "bumping"
@@ -93,9 +105,10 @@ est_part = fit_estimate_partition(y, X, d, breaks_per_dim=5, ctrl_method = "Lass
 
 Parallel-processing the outer-loops
 ```{r}
+#library(parallel)
 #def.cl.cores = 3
 #cl <- makeCluster(getOption("cl.cores", def.cl.cores))
-#fit_estimate_partition(..., pr_cl=cl)
+#fit_res = fit_estimate_partition(..., pr_cl=cl)
 ```
 
 # Multiple core estimates
@@ -131,7 +144,6 @@ print(est_part_MM)
 
 
 # Minor things to add
-- Graphing (`plot_2D_partition.estimated_partition(grid_fit, X_names_2D)`)
 - Dealing with factors
 - Implementing own control approach
 - Usage for mean-fitting

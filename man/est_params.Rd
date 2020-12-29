@@ -32,7 +32,7 @@ est_params(obj, y, d = NULL, X, sample = "est", ret_var = FALSE)
 \code{list(param_est=...)} or \code{list(param_est=...)} if \code{ret_var}
 }
 \description{
-Estimate parameters
+Estimate parameters on the data.
 }
 \section{Methods (by class)}{
 \itemize{

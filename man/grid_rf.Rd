@@ -17,8 +17,6 @@ is.grid_rf(x)
 \item{resid_est}{Residualize the Estimation sample (using fit from training)}
 
 \item{x}{an R object}
-
-\item{dof}{degrees-of-freedom}
 }
 \value{
 grid_rf object
@@ -28,6 +26,8 @@ Boolean
 \description{
 Residualizes the train sample using cross-fitting
 Residualizes the estimation samples using a train fit
+
+Tests wheterh object is a \code{grid_rf}.
 }
 \section{Functions}{
 \itemize{

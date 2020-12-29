@@ -68,5 +68,8 @@ NULL
 # - see if can swap findInterval for cut() (do I need the labels)
 # Checks: Check all user input types of exported functions
 # Tests: More!
-# R check (currently ignoring): checking dependencies in R code, 
-#          Undefined global functions or variables, tests
+# R check (currently ignoring): 
+# - Undefined global functions or variables, 
+# - undocumented ... in main two entry points (what to say in doc)
+# - Non-standard files/directories found at top level: 'CODE_OF_CONDUCT.md' 'SECURITY.md' 'SUPPORT.md'
+

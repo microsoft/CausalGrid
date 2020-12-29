@@ -15,5 +15,5 @@ add_partition_split(obj, s)
 updated Grid Partition
 }
 \description{
-Adds partition_split to grid_partition
+Update the partition with an additional split.
 }

@@ -4,6 +4,7 @@ citEntry(entry = "Unpublished",
   title        = "Causal Grid: Regular partitions for subgroup identification and analysis",
   author       = personList(as.person("Brian Quistorff")),
   year         = "2020",
+  note         = "mimeo",
   url          = "https://sites.google.com/site/bquistorff/research",
 
   textVersion  =

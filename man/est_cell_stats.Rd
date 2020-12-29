@@ -16,12 +16,12 @@ est_cell_stats(
 )
 }
 \arguments{
-\item{y}{Nx1 matrix of outcome (label/target) data}
+\item{y}{Nx1 matrix of outcome (label/target) data. With multiple core estimates see Details below.}
 
-\item{X}{NxK matrix of features (covariates)}
+\item{X}{NxK matrix of features (covariates). With multiple core estimates see Details below.}
 
-\item{d}{(Optional) NxP matrix (with colnames) of treatment data. If all equally important they should 
-be normalized to have the same variance.}
+\item{d}{(Optional) NxP matrix (with colnames) of treatment data. If all equally important they 
+should be normalized to have the same variance. With multiple core estimates see Details below.}
 
 \item{partition}{(Optional, need this or cell_factor) partitioning returned from fit_estimate_partition}
 
@@ -31,9 +31,9 @@ be normalized to have the same variance.}
 (where if no d then can pass in null). If NULL then will choose between built-in 
 mean-estimator and scalar_te_estimator}
 
-\item{est_plan}{Estimation plan}
+\item{est_plan}{Estimator plan}
 
-\item{alpha}{Alpha}
+\item{alpha}{Significance threshold}
 }
 \value{
 list
@@ -43,3 +43,13 @@ list
 \description{
 Estimate the parameters (including standard errors) across the cells in the sample.
 }
+\section{Multiple estimates}{
+
+With multiple core estimates (M) there are 3 options (the first two have the same sample across treatment effects).\enumerate{
+ \item DS.MULTI_SAMPLE: Multiple pairs of (Y_{m},W_{m}). y,X,d are then lists of length M. Each element then has the typical size
+    The N_m may differ across m. The number of columns of X will be the same across m.
+ \item DS.MULTI_D: Multiple treatments and a single outcome. d is then a NxM matrix.
+ \item DS.MULTI_Y: A single treatment and multiple outcomes. y is then a NXM matrix.
+}
+}
+

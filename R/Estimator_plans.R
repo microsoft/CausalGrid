@@ -124,8 +124,10 @@ NULL
 #Aside from these generics, subclasses must have $dof scalar
 
 #' Fit estimator_plan on training sample
+#' 
+#' Initializes the estimator (if necessary) on the \code{train} sample.
 #'
-#' @param obj an EstimatorPlan object
+#' @param obj an \code{EstimatorPlan} object
 #' @param X_tr N_trxK matrix
 #' @param y_tr N_tr-vector
 #' @param d_tr NULL, N_tr-vector, or N_trxM matrix (if multiple treatments)
@@ -153,6 +155,8 @@ fit_on_train <- function(obj, X_tr, y_tr, d_tr, cv_folds, verbosity=0, dim_cat=c
 residualize <- function(obj, y, X, d, sample) { UseMethod("residualize", obj)}
 
 #' Estimate parameters
+#' 
+#' Estimate parameters on the data.
 #'
 #' @param obj an EstimatorPlan object
 #' @param y A N-vector
@@ -168,6 +172,8 @@ est_params <- function(obj, y, d=NULL, X, sample="est", ret_var=FALSE) { UseMeth
 # lm_est ---------------
 
 #' create an lm_est object
+#' 
+#' An estimator that can potentially control linearly for some features.
 #'
 #' @param lasso  Use Lasso on the train sample to choose control variables
 #' @param control_est Use controls when estimating effects on estimation sample
@@ -179,6 +185,8 @@ lm_est <- function(lasso=FALSE, control_est=TRUE) {
 }
 
 #' Is lm_est
+#' 
+#' Tests whether object is an \code{lm_est}.
 #'
 #' @param x an R object
 #'
@@ -277,10 +285,12 @@ est_params.lm_est <- function(obj, y, d=NULL, X, sample="est", ret_var=FALSE) {
 # simple_est ---------------
 
 #' Create a simple_est object
+#' 
+#' A wrapper around a pair of estimator functions (w/ and w/o variance estimates)
 #'
 #' @param te_fn Bare Treatment Estimation function 
 #' @param te_var_fn Treatment estimatino function when variance needed
-#' @param dof 
+#' @param dof Degree-of-freedom correction (2 for intercept and treatment)
 #'
 #' @return Estimation Plan
 #' @export
@@ -289,6 +299,8 @@ simple_est <- function(te_fn, te_var_fn, dof=2) {
 } 
 
 #' Is simple_est
+#' 
+#' Tests whether oject is an \code{simple_est}.
 #'
 #' @param x an R object
 #'
@@ -327,7 +339,6 @@ est_params.simple_est <- function(obj, y, d=NULL, X, sample="est", ret_var=FALSE
 #'
 #' @param num.trees number of trees in the random forest
 #' @param num.threads num.threads
-#' @param dof degrees-of-freedom
 #' @param resid_est Residualize the Estimation sample (using fit from training)
 #'
 #' @return grid_rf object
@@ -338,6 +349,8 @@ grid_rf <- function(num.trees=500, num.threads=NULL, resid_est=TRUE) {
 } 
 
 #' Is grid_rf
+#' 
+#' Tests wheterh object is a \code{grid_rf}.
 #'
 #' @param x an R object
 #'
