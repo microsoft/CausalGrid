@@ -7,7 +7,7 @@
 
 library(gsubfn)
 library(devtools)
-suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(data.table)) # suppressPackageStartupMessages(library(assertthat))
 library(CausalGrid)
 library(causalTree)
 library(doParallel)
@@ -22,7 +22,7 @@ source("project/ct_utils.R")
 source("tests/dgps.R")
 
 #Paths
-export_dir = "C:/Users/bquist/Dropbox/Causal Grid/writeup/" #can be turned off below
+export_dir = "" #can be turned off below
 sim_rdata_fname = "project/sim.RData"
 log_file = "project/log.txt"
 tbl_export_path = paste0(export_dir, "tables/")
@@ -43,10 +43,10 @@ N_test = 8000
 NN = length(Ns)
 NIters = NN*D*S
 
-good_features = list(c(T,T),c(T, F), c(T, T, rep(F, 8)), c(rep(T, 4), rep(F, 16)))
+good_features = list(c(T, F), c(T, T, rep(F, 8)), c(rep(T, 4), rep(F, 16)), c(T,T))
 
 #Execution config
-n_parallel = 1 #1 5; PARALLEL
+n_parallel = 10 #1 5; PARALLEL
 my_seed = 1337
 set.seed(my_seed)
 rf.num.threads = 1 #NULL will multi-treatd, doesn't seem to help much with small data
@@ -96,10 +96,10 @@ sim_eval_ct <- function(data1, data2, good_mask, honest=FALSE) {
   return(list(ct_fit, nl, mse, ngood, ntot))
 }
 
-sim_cg_fit <- function(y, X, w, tr_sample, verbosity=0, honest=FALSE, do_rf=FALSE, num.threads=rf.num.threads, ...) {
+sim_cg_fit <- function(y, X, w, tr_sample, verbosity=0, honest=FALSE, do_rf=FALSE, num.threads=rf.num.threads, num.trees=100, ...) {
   set.seed(my_seed)
   if(do_rf) {
-    return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, honest=honest, ctrl_method=grid_rf(num.threads=num.threads), nsplits_k_warn_limit=NA, ...))
+    return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, honest=honest, ctrl_method=grid_rf(num.threads=num.threads, num.trees=num.trees), nsplits_k_warn_limit=NA, ...))
   }
   else {
     return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, honest=honest, nsplits_k_warn_limit=NA, ...))
@@ -184,8 +184,8 @@ for(d in 1:D) {
       run = run+1
     }
     results_s = list() #PARALLEL: comment-out
-    for(s in 1:S){  #PARALLEL: comment-out, uncomment next
-    #results_s = foreach(s=1:S, .packages=c("proto","gsubfn","rpart", "rpart.plot", "data.table","causalTree", "ranger",  "lattice", "ggplot2", "caret", "Matrix", "foreach", "CausalGrid"), .errorhandling = "pass") %dopar% { #, .combine=rbind
+    #for(s in 1:S){  #PARALLEL: comment-out, uncomment next
+    results_s = foreach(s=1:S, .packages=c("proto","gsubfn","rpart", "rpart.plot", "data.table","causalTree", "ranger",  "lattice", "ggplot2", "caret", "Matrix", "foreach", "CausalGrid"), .errorhandling = "pass") %dopar% { #, .combine=rbind
       if(n_parallel==1) {
         utils::setTxtProgressBar(pb, run)
         run = run+1
@@ -218,12 +218,12 @@ for(d in 1:D) {
       res = c(res, sim_cg_vectors(grid_a_RF_b_hm_fit, good_features[[d]], X_te, tau_te))
       
       #Save space
-      grid_a_RF_fit$est_plan$rf_y_fit <- grid_a_RF_fit$est_plan$rf_d_fit <- NULL
-      grid_a_RF_b_fit$est_plan$rf_y_fit <- grid_a_RF_b_fit$est_plan$rf_d_fit <- NULL
+      grid_a_RF_fit$est_plan$rf_y_fit <-grid_a_RF_fit$est_plan$rf_y_xfit <- grid_a_RF_fit$est_plan$rf_d_fit <- grid_a_RF_fit$est_plan$rf_d_xfit <- NULL
+      grid_a_RF_b_fit$est_plan$rf_y_fit <- grid_a_RF_b_fit$est_plan$rf_y_xfit <- grid_a_RF_b_fit$est_plan$rf_d_fit <- grid_a_RF_b_fit$est_plan$rf_d_xfit <- NULL
       res = list(grid_a_fit, grid_a_LassoCV_fit, grid_a_RF_fit, grid_a_LassoCV_b_fit, grid_a_RF_b_fit, res)
       
-      results_s[[s]] = res #PARALLEL: comment-out, uncomment next
-      #res
+      #results_s[[s]] = res #PARALLEL: comment-out, uncomment next
+      res
     }
     outer_results[[(d-1)*NN + (N_i-1) + 1]] = results_s
   }

@@ -1,6 +1,7 @@
 #Sims stuff
 project/sim.RData
 project/log.txt
+tables/
 
 #Cpp builds
 src/*.o
@@ -45,3 +46,4 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+.Rproj.user
