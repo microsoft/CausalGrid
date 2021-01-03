@@ -15,5 +15,5 @@ partition_split(k, X_k_cut)
 Partition Split
 }
 \description{
-Describes a single partition split. Used with \code{\link{add_partition_split}}
+Describes a single partition split. Used with \code{\link{add_partition_split}}.
 }

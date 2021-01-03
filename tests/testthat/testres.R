@@ -14,7 +14,7 @@ library(CausalGrid)
 
 set.seed(1337)
 
-context("Works OK")
+context("Test result")
 
 source(paste0(testthat_root_dir,"/../dgps.R"))
 

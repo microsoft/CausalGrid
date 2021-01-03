@@ -15,12 +15,19 @@ library(CausalGrid)
 
 set.seed(1337)
 
-context("Works OK")
+context("Test Run")
 
 source(paste0(testthat_root_dir,"/../dgps.R"))
 
 data <- mix_data_d(n=1000)
 breaks_per_dim = list(c(0.5), c(0))
+
+# Does Bumping work -------------------
+
+ret_bmp1 <- fit_estimate_partition(data$y, data$X, data$d, cv_folds=2, verbosity=0, breaks_per_dim=breaks_per_dim, bump_sampes=2, bump_complexity=list(doCV=FALSE, incl_comp_in_pick=FALSE))
+ret_bmp2 <- fit_estimate_partition(data$y, data$X, data$d, cv_folds=2, verbosity=0, breaks_per_dim=breaks_per_dim, bump_sampes=2, bump_complexity=list(doCV=TRUE, incl_comp_in_pick=FALSE))
+ret_bmp3 <- fit_estimate_partition(data$y, data$X, data$d, cv_folds=2, verbosity=0, breaks_per_dim=breaks_per_dim, bump_sampes=2, bump_complexity=list(doCV=FALSE, incl_comp_in_pick=TRUE))
+ret_bmp4 <- fit_estimate_partition(data$y, data$X, data$d, cv_folds=2, verbosity=0, breaks_per_dim=breaks_per_dim, bump_sampes=2, bump_complexity=list(doCV=TRUE, incl_comp_in_pick=TRUE))
 
 # Make sure partition is fine with 0 obs ----------------
 X_range = get_X_range(data$X)

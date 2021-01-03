@@ -22,7 +22,8 @@
 
 \item{digits}{digits Option (default is NULL)}
 
-\item{import_order}{should we use importance ordering or input ordering (default)}
+\item{import_order}{Should we use importance ordering (most important on the left) or input ordering (default) for features.
+Rows will be ordered so that the right-most will change most frequently.}
 
 \item{...}{Additional arguments. These will be passed to print.data.frame}
 }

@@ -99,10 +99,15 @@ sim_eval_ct <- function(data1, data2, good_mask, honest=FALSE) {
 sim_cg_fit <- function(y, X, w, tr_sample, verbosity=0, honest=FALSE, do_rf=FALSE, num.threads=rf.num.threads, num.trees=100, ...) {
   set.seed(my_seed)
   if(do_rf) {
-    return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, honest=honest, ctrl_method=grid_rf(num.threads=num.threads, num.trees=num.trees), nsplits_k_warn_limit=NA, ...))
+    return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, 
+                                  min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, 
+                                  honest=honest, ctrl_method=grid_rf(num.threads=num.threads, num.trees=num.trees), 
+                                  nsplits_k_warn_limit=NA, bump_complexity=list(doCV=TRUE, incl_comp_in_pick=TRUE), ...))
   }
   else {
-    return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, honest=honest, nsplits_k_warn_limit=NA, ...))
+    return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, 
+                                  min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, 
+                                  honest=honest, nsplits_k_warn_limit=NA, bump_complexity=list(doCV=TRUE, incl_comp_in_pick=TRUE), ...))
   }
 }
 

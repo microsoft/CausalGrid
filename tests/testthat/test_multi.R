@@ -14,7 +14,7 @@ library(CausalGrid)
 
 set.seed(1337)
 
-context("Works OK")
+context("Testing multiple estimates")
 
 #Define different data shapes and structures (short vs long, non-matrix vs matrix)
 #Short variants
@@ -74,25 +74,25 @@ d3m = dsm
 X3m = Xsm
 
 #Alternate whether: (a) using random or fixed splits, cv or partition_i, non-matrix vs matrix data structures, controls
-print(0)
+#print(0)
 fit_estimate_partition(y0, X0, d0, partition_i=2, tr_split = tr_splits, cv_folds=cv_foldss, bump_samples=2, ctrl_method="LassoCV")
 fit_estimate_partition(y0, X0, d0, partition_i=2, tr_split = tr_splits, cv_folds=cv_foldss, bump_samples=2, ctrl_method="RF")
 fit_estimate_partition(y0, X0, d0, partition_i=2, tr_split = tr_splits, cv_folds=cv_foldss, bump_samples=2)
 fit_estimate_partition(y0m, X0m, d0m, bump_samples=2)
 
-print(1)
+#print(1)
 fit_estimate_partition(y1m, X1m, d1m, partition_i=2, tr_split = list(tr_splits,tr_splitl,tr_splits), cv_folds=list(cv_foldss,cv_foldsl,cv_foldss), bump_samples=2, ctrl_method="LassoCV")
 fit_estimate_partition(y1m, X1m, d1m, partition_i=2, tr_split = list(tr_splits,tr_splitl,tr_splits), cv_folds=list(cv_foldss,cv_foldsl,cv_foldss), bump_samples=2, ctrl_method="RF")
 fit_estimate_partition(y1m, X1m, d1m, partition_i=2, tr_split = list(tr_splits,tr_splitl,tr_splits), cv_folds=list(cv_foldss,cv_foldsl,cv_foldss), bump_samples=2)
 fit_estimate_partition(y1, X1, d1, bump_samples=2)
 
-print(2)
+#print(2)
 fit_estimate_partition(y2, X2, d2, partition_i=2, tr_split = tr_splits, cv_folds=cv_foldss, bump_samples=2, ctrl_method="LassoCV")
 fit_estimate_partition(y2, X2, d2, partition_i=2, tr_split = tr_splits, cv_folds=cv_foldss, bump_samples=2, ctrl_method="RF")
 fit_estimate_partition(y2, X2, d2, partition_i=2, tr_split = tr_splits, cv_folds=cv_foldss, bump_samples=2)
 fit_estimate_partition(y2m, X2m, d2m, bump_samples=2)
 
-print(3)
+#print(3)
 fit_estimate_partition(y3m, X3m, d3m, partition_i=2, tr_split = tr_splits, cv_folds=cv_foldss, bump_samples=2, ctrl_method="LassoCV")
 fit_estimate_partition(y3m, X3m, d3m, partition_i=2, tr_split = tr_splits, cv_folds=cv_foldss, bump_samples=2, ctrl_method="RF")
 fit_estimate_partition(y3m, X3m, d3m, partition_i=2, tr_split = tr_splits, cv_folds=cv_foldss, bump_samples=2)

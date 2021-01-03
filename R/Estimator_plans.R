@@ -1,108 +1,4 @@
 
-# Estimator Fns -----------
-cont_te_estimator <- function(y, d, ...) {
-  if(is_vec(d)) {
-    # Straight formulas is much faster than OLS
-    #formula reference: http://cameron.econ.ucdavis.edu/e240a/reviewbivariate.pdf
-    y_avg = mean(y)
-    d_avg = mean(d)
-    d_demean = d-d_avg
-    sum_d_dev = sum(d_demean^2)
-    param_est = sum((y-y_avg)*d_demean)/sum_d_dev
-  }
-  else {
-    ols_fit = lm(y~d)
-    param_est = coef(ols_fit)[-1]
-  }
-  return(list(param_est=param_est))
-}
-
-cont_te_var_estimator <- function(y, d, ...) {
-  if(is_vec(d)) {
-    # Straight formulas is much faster than OLS
-    #formula reference: http://cameron.econ.ucdavis.edu/e240a/reviewbivariate.pdf
-    y_avg = mean(y)
-    d_avg = mean(d)
-    d_demean = d-d_avg
-    sum_d_dev = sum(d_demean^2)
-    param_est = sum((y-y_avg)*d_demean)/sum_d_dev
-    b0 = y_avg - param_est*d_avg
-    y_hat = b0+param_est*d
-    err = y - y_hat
-    var_est = (sum(err^2)/(length(y)-2))/sum_d_dev
-  }
-  else {
-    if(length(y)==0) {
-      print("Ahh")
-    }
-    ols_fit = lm(y~d)
-    param_est = coef(ols_fit)[-1]
-    var_est = diag(vcov(lm(y~d)))[-1]
-  }
-  return(list(param_est=param_est, var_est=var_est))
-}
-
-#Handles removing factors with only 1 level
-robust_lm_d <- function(y, d, X, ctrl_names) {
-  ctrl_str = if(length(ctrl_names)>0) paste0("+", paste(ctrl_names, collapse="+")) else ""
-  tryCatch(ols_fit <- lm(formula(paste0("y~d", ctrl_str)), data=as.data.frame(X)),
-           error=function(e) {
-             ctrl_names2 <- ctrl_names[sapply(ctrl_names, function(ctrl_name){length(unique(X[, ctrl_name]))}) > 1]
-             ctrl_str2 <- if(length(ctrl_names2)>0) paste0("+", paste(ctrl_names2, collapse="+")) else ""
-             ols_fit <<- lm(formula(paste0("y~d", ctrl_str2)), data=as.data.frame(X))
-           })
-  return(ols_fit)
-}
-
-#can handle MULTI_D
-cont_te_X_estimator <- function(y, d, X, ctrl_names) {
-  d_ncols = if(is_vec(d)) 1 else ncol(d)
-  ols_fit = robust_lm_d(y, d, X, ctrl_names)
-  param_est=coef(ols_fit)[2:(1+d_ncols)]
-  return(list(param_est=param_est))
-}
-
-
-#can handle MULTI_D
-cont_te_var_X_estimator <- function(y, d, X, ctrl_names) {
-  d_ncols = if(is_vec(d)) 1 else ncol(d)
-  ols_fit = robust_lm_d(y, d, X, ctrl_names)
-  param_est=coef(ols_fit)[2:(1+d_ncols)]
-  var_est=diag(vcov(ols_fit))[2:(1+d_ncols)]
-  return(list(param_est=param_est, var_est=var_est))
-}
-
-lcl_colMeans <- function(y) {
-  if(is.list(y)) #list of dataframe
-    return(sapply(y, mean))
-  if(is_vec(y)) #vector
-    return(mean(y))
-  #matrix
-  return(colMeans(y))
-}
-
-lcl_colVars_est <- function(y) {
-  if(is.list(y)) #list of dataframe
-    return(sapply(y, function(c) var(c)/(length(c)-1)))
-  if(is_vec(y)) #vector
-    return(var(y)/(length(y)-1))
-  #matrix
-  return(apply(y, 2, function(c) var(c)/(length(c)-1)))
-}
-
-mean_var_estimator <- function(y, ...) {
-  #int_str = "(Intercept)" #"const"
-  #ols_fit <- lm(y~1)
-  #param_est=coef(ols_fit)[int_str]
-  #var_est=vcov(ols_fit)[int_str, int_str]
-  # The below is much faster
-  
-  return(list(param_est=lcl_colMeans(y), var_est=lcl_colVars_est(y)))
-}
-
-mean_estimator <- function(y, ...) {
-  return(list(param_est=lcl_colMeans(y)))
-}
 
 
 # Generics ---------------
@@ -465,4 +361,109 @@ est_params.grid_rf <- function(obj, y, d=NULL, X, sample="est", ret_var=FALSE) {
   
   if(ret_var) return(cont_te_var_estimator(y, d, X))
   return(cont_te_estimator(y, d, X))
+}
+
+# Estimator Fns -----------
+cont_te_estimator <- function(y, d, ...) {
+  if(is_vec(d)) {
+    # Straight formulas is much faster than OLS
+    #formula reference: http://cameron.econ.ucdavis.edu/e240a/reviewbivariate.pdf
+    y_avg = mean(y)
+    d_avg = mean(d)
+    d_demean = d-d_avg
+    sum_d_dev = sum(d_demean^2)
+    param_est = sum((y-y_avg)*d_demean)/sum_d_dev
+  }
+  else {
+    ols_fit = lm(y~d)
+    param_est = coef(ols_fit)[-1]
+  }
+  return(list(param_est=param_est))
+}
+
+cont_te_var_estimator <- function(y, d, ...) {
+  if(is_vec(d)) {
+    # Straight formulas is much faster than OLS
+    #formula reference: http://cameron.econ.ucdavis.edu/e240a/reviewbivariate.pdf
+    y_avg = mean(y)
+    d_avg = mean(d)
+    d_demean = d-d_avg
+    sum_d_dev = sum(d_demean^2)
+    param_est = sum((y-y_avg)*d_demean)/sum_d_dev
+    b0 = y_avg - param_est*d_avg
+    y_hat = b0+param_est*d
+    err = y - y_hat
+    var_est = (sum(err^2)/(length(y)-2))/sum_d_dev
+  }
+  else {
+    if(length(y)==0) {
+      print("Ahh")
+    }
+    ols_fit = lm(y~d)
+    param_est = coef(ols_fit)[-1]
+    var_est = diag(vcov(lm(y~d)))[-1]
+  }
+  return(list(param_est=param_est, var_est=var_est))
+}
+
+#Handles removing factors with only 1 level
+robust_lm_d <- function(y, d, X, ctrl_names) {
+  ctrl_str = if(length(ctrl_names)>0) paste0("+", paste(ctrl_names, collapse="+")) else ""
+  tryCatch(ols_fit <- lm(formula(paste0("y~d", ctrl_str)), data=as.data.frame(X)),
+           error=function(e) {
+             ctrl_names2 <- ctrl_names[sapply(ctrl_names, function(ctrl_name){length(unique(X[, ctrl_name]))}) > 1]
+             ctrl_str2 <- if(length(ctrl_names2)>0) paste0("+", paste(ctrl_names2, collapse="+")) else ""
+             ols_fit <<- lm(formula(paste0("y~d", ctrl_str2)), data=as.data.frame(X))
+           })
+  return(ols_fit)
+}
+
+#can handle MULTI_D
+cont_te_X_estimator <- function(y, d, X, ctrl_names) {
+  d_ncols = if(is_vec(d)) 1 else ncol(d)
+  ols_fit = robust_lm_d(y, d, X, ctrl_names)
+  param_est=coef(ols_fit)[2:(1+d_ncols)]
+  return(list(param_est=param_est))
+}
+
+
+#can handle MULTI_D
+cont_te_var_X_estimator <- function(y, d, X, ctrl_names) {
+  d_ncols = if(is_vec(d)) 1 else ncol(d)
+  ols_fit = robust_lm_d(y, d, X, ctrl_names)
+  param_est=coef(ols_fit)[2:(1+d_ncols)]
+  var_est=diag(vcov(ols_fit))[2:(1+d_ncols)]
+  return(list(param_est=param_est, var_est=var_est))
+}
+
+lcl_colMeans <- function(y) {
+  if(is.list(y)) #list of dataframe
+    return(sapply(y, mean))
+  if(is_vec(y)) #vector
+    return(mean(y))
+  #matrix
+  return(colMeans(y))
+}
+
+lcl_colVars_est <- function(y) {
+  if(is.list(y)) #list of dataframe
+    return(sapply(y, function(c) var(c)/(length(c)-1)))
+  if(is_vec(y)) #vector
+    return(var(y)/(length(y)-1))
+  #matrix
+  return(apply(y, 2, function(c) var(c)/(length(c)-1)))
+}
+
+mean_var_estimator <- function(y, ...) {
+  #int_str = "(Intercept)" #"const"
+  #ols_fit <- lm(y~1)
+  #param_est=coef(ols_fit)[int_str]
+  #var_est=vcov(ols_fit)[int_str, int_str]
+  # The below is much faster
+  
+  return(list(param_est=lcl_colMeans(y), var_est=lcl_colVars_est(y)))
+}
+
+mean_estimator <- function(y, ...) {
+  return(list(param_est=lcl_colMeans(y)))
 }

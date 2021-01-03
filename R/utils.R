@@ -1,5 +1,21 @@
 # Utils
 
+# Generics ------------------
+
+
+#' Return number of cells for the object
+#' 
+#' Returns the number of cells for the an object
+#'
+#' @param obj Object
+#'
+#' @return Number of cells in partition (at least 1)
+#' @export
+num_cells <- function(obj) {
+  UseMethod("num_cells", obj)
+} 
+
+# General Utils ----------------
 
 #handles vectors and 2D structures
 row_sample <- function(data, sample) {
@@ -52,6 +68,19 @@ is_factor_dim_k <- function(X, k) {
   return(is.factor(X[, k]))
 }
 
+
+#Standard way to check if vector is constant is const_vectr(), but is O(n).
+#Checking element-by-element would often be faster, but this is inefficient in R
+#and faster in C. const_vect1() and const_vect2() were two versions (first using
+#'inline', second just Rcpp), but couldn't get to work in building a package.
+#The Rcpp version is now in a separate file.
+
+const_vectr <- function(x) {
+  if(length(x)==0) return(TRUE)
+  r = range(x)
+  return(r[1]==r[2])
+}
+
 # Fold utils --------------------------
 
 gen_folds <- function(y, nfolds) {
@@ -68,6 +97,17 @@ gen_folds <- function(y, nfolds) {
   return(list(foldids=foldids, index=idx_new, indexOut=idxOut_new))
   
 }
+
+
+factor_from_idxs <-function(N, nfolds, indexOut) {
+  folds = vector("numeric", N)
+  for(f in 1:nfolds) {
+    folds[indexOut[[f]]] = f
+  }
+  folds_f = as.factor(folds)
+  return(folds_f)
+}
+
 
 foldlists_to_foldids <- function(indexOut) {
   nfolds = length(indexOut)
@@ -102,6 +142,14 @@ expand_fold_info <- function(y, cv_folds, m_mode) {
   }
   
   return(list(nfolds, folds_ret, foldids))
+}
+
+expand_bump_samples <- function(bump_samples, bump_ratio, N, m_mode) {
+  if(length(bump_samples)==1) {
+    bump_B = bump_samples
+    bump_samples <- lapply(seq_len(bump_B), function(b){sample_m(bump_ratio, N, m_mode==DS.MULTI_SAMPLE)})  
+  }
+  return(bump_samples)
 }
 
 # Multi-sample utils ----------------------
@@ -207,6 +255,18 @@ check_M_K <- function(M, m_mode, K, X_aux, d_aux) {
 } 
 
 # Multi-sample wrappers --------------------
+
+
+valid_partition_m <- function(M_mult, valid_fn, cell_factor, d, cell_factor_aux=NULL, d_aux=NULL, min_size=0) {
+  if(M_mult) {
+    for(m in 1:length(cell_factor)) {
+      v_ret = valid_fn(cell_factor[[m]], d[[m]], cell_factor_aux[[m]], d_aux[[m]], min_size)
+      if(v_ret$fail) return(v_ret)
+    }
+    return(list(fail=FALSE))
+  }
+  return(valid_fn(cell_factor, d, cell_factor_aux, d_aux, min_size))
+}
 
 #length of N is M (so even if same sample)
 nrow_m <- function(X, M) {

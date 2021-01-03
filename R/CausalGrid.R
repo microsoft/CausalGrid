@@ -2,7 +2,7 @@
 #' 
 #' This package helps you analyze subgroups. The main entry point is \code{\link{fit_estimate_partition}}.
 #'
-#' Segment definition: Intervals are (a,b], and [a,b] for the lowest. A split at x means <= and >. \code{\link{fit_estimate_partition}}.
+#' Segment definition: Intervals are (a,b], and [a,b] for the lowest. A split at x means <= and >.
 #' 
 #' Randomization: This package should be able to be run with no randomness. With simple params the following places randomize. \itemize{
 #'   \item  Generating train/est splits. Can be overridden by providing \code{tr_split}
@@ -37,6 +37,7 @@ NULL
 # Cleanup:
 # - Encapsulate valid_partition() + bucket-splits with est_plan (deal with what happens with est error). + Doc.
 # - Styler and lintr; https://style.tidyverse.org/
+# - Merge factor_from_idxs and foldlists_to_foldids
 # Functionality:
 # - Allow for picking paritition with # cells closest to an 'ideal' number
 # - Allow initial splits to be pre-determined.
@@ -66,6 +67,9 @@ NULL
 #     (twextras)[https://github.com/twolodzko/twextras/blob/master/R/cumxxx.R]
 # - Pre-compute the allowable range for new splits in each slice given the cell min size.
 # - see if can swap findInterval for cut() (do I need the labels)
+# Graphing:
+# - Add marginal plots: https://www.r-graph-gallery.com/277-marginal-histogram-for-ggplot2.html
+# - When more than 2-d, have the 2d graphs be the most important wones and split on the least
 # Checks: Check all user input types of exported functions
 # Tests: More!
 # R check (currently ignoring): 

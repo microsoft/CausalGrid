@@ -1,18 +1,4 @@
-# TODO:
-# - Add marginal plots: https://www.r-graph-gallery.com/277-marginal-histogram-for-ggplot2.html
-# - When more than 2-d, have the 2d graphs be the most important wones and split on the least
 
-gen_one_plt <- function(desc_range_df, param_ests, X_names_2D) {
-  desc_range_df = do.call(cbind, lapply(desc_range_df, function(c) as.data.frame(t(matrix(unlist(c), nrow=2)))))
-  
-  colnames(desc_range_df)<-c("xmin", "xmax", "ymin", "ymax")
-  desc_range_df["fill"] = param_ests
-  
-  plt = ggplot2::ggplot() + 
-    ggplot2::scale_x_continuous(name=X_names_2D[1]) +ggplot2::scale_y_continuous(name=X_names_2D[2]) +
-    ggplot2::geom_rect(data=desc_range_df, mapping=ggplot2::aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, fill=fill), color="black")
-  return(plt)
-}
 
 #' Create 2D plots of parameter estimates
 #' 
@@ -53,4 +39,17 @@ plot_2D_partition.estimated_partition <- function(grid_fit, X_names_2D) {
   }
   
   return(plts)
+}
+
+
+gen_one_plt <- function(desc_range_df, param_ests, X_names_2D) {
+  desc_range_df = do.call(cbind, lapply(desc_range_df, function(c) as.data.frame(t(matrix(unlist(c), nrow=2)))))
+  
+  colnames(desc_range_df)<-c("xmin", "xmax", "ymin", "ymax")
+  desc_range_df["fill"] = param_ests
+  
+  plt = ggplot2::ggplot() + 
+    ggplot2::scale_x_continuous(name=X_names_2D[1]) +ggplot2::scale_y_continuous(name=X_names_2D[2]) +
+    ggplot2::geom_rect(data=desc_range_df, mapping=ggplot2::aes(xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax, fill=fill), color="black")
+  return(plt)
 }

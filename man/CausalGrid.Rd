@@ -8,7 +8,7 @@
 This package helps you analyze subgroups. The main entry point is \code{\link{fit_estimate_partition}}.
 }
 \details{
-Segment definition: Intervals are (a,b], and [a,b] for the lowest. A split at x means <= and >. \code{\link{fit_estimate_partition}}.
+Segment definition: Intervals are (a,b], and [a,b] for the lowest. A split at x means <= and >.
 
 Randomization: This package should be able to be run with no randomness. With simple params the following places randomize. \itemize{
   \item  Generating train/est splits. Can be overridden by providing \code{tr_split}

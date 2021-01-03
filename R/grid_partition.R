@@ -1,105 +1,5 @@
 # agnostic to objective function or data splits
 
-# Factor/vector Utils -----------
-
-get_factors_from_splits_dim <- function(X_k, X_k_range, s_by_dim_k) {
-  if(mode(X_k_range)=="character") {
-    windows = get_windows_cat(s_by_dim_k, X_k_range)
-    fac = X_k
-    new_name_map = levels(fac)
-    new_names = c()
-    for(window in windows) {
-      new_name = if(length(window)>1) paste0("{", paste(window, collapse=","), "}") else window[1]
-      new_name_map[levels(fac) %in% window] = new_name
-      new_names = c(new_names, new_name)
-    }
-    levels(fac) <- new_name_map
-    fac = factor(fac, new_names)
-  }
-  else {
-    bottom_break = X_k_range[1]
-    top_break = X_k_range[2]
-    #if(nsplits_by_dim_k>0) {
-    #bottom_split = s_by_dim_k[1]
-    #if(bottom_split==bottom_break)
-    bottom_break = bottom_break-1 #not needed
-    #}
-    top_break = top_break+1
-    breaks = c(bottom_break, s_by_dim_k, top_break)
-    fac = cut(X_k, breaks, labels=NULL, include.lower=TRUE) #right=FALSE makes [a,b) segments. labels=FALSE makes just numeric vector
-  }
-  return(fac)
-}
-
-get_factors_from_splits_dim_m <- function(X, X_k_range, s_by_dim_k, k) {
-  M_mult = is_sep_sample(X)
-  if(!M_mult)
-    return(get_factors_from_splits_dim(X[,k], X_k_range, s_by_dim_k))
-  return(lapply(X, function(X_s) get_factors_from_splits_dim(X_s[,k], X_k_range, s_by_dim_k)))
-}
-
-factor_from_idxs <-function(N, nfolds, indexOut) {
-  folds = vector("numeric", N)
-  for(f in 1:nfolds) {
-    folds[indexOut[[f]]] = f
-  }
-  folds_f = as.factor(folds)
-  return(folds_f)
-}
-
-#Standard way to check if vector is constant is const_vectr(), but is O(n).
-# Checking element-by-element would often be faster, but this is inefficient in R and faster in C.
-# const_vect1() and const_vect2() were two versions (first using 'inline', second just Rcpp), 
-#  but couldn't get to work in building a package. The Rcpp version is now in a separate file.
-
-const_vectr <- function(x) {
-  if(length(x)==0) return(TRUE)
-  r = range(x)
-  return(r[1]==r[2])
-}
-
-#' Get X_range
-#' 
-#' Gets the "range" of each variable in X. For numeric variables this is (min, max).
-#' For factors this means vector of levels.  
-#'
-#' @param X data
-#'
-#' @return list of length K with each element being the "range" along that dimension
-#' @export
-get_X_range <- function(X) {
-  if(is_sep_sample(X))
-    X = do.call("rbind", X)
-  if(is.matrix(X)) {
-    are_equal(mode(X), "numeric")
-  }
-  else {
-    assert_that(is.data.frame(X))
-    if(inherits(X, "tbl")) X = as.data.frame(X) #tibble's return tibble (rather than vector) for X[,k], making is.factor(X[,k]) and others fail. Could switch to doing X[[k]] for df-like objects
-    for(k in seq_len(ncol(X))) are_equal(mode(X[[k]]), "numeric")
-  }
-  assert_that(ncol(X)>=1)
-  
-  X_range = list()
-  K = ncol(X)
-  for(k in 1:K) {
-    X_k = X[, k]
-    X_range[[k]] = if(is.factor(X_k)) levels(X_k) else range(X_k) #c(min, max)
-  }
-  return(X_range)
-}
-
-#' Return number of cells for the object
-#' 
-#' Returns the number of cells for the an object
-#'
-#' @param obj Object
-#'
-#' @return Number of cells in partition (at least 1)
-#' @export
-num_cells <- function(obj) {
-  UseMethod("num_cells", obj)
-} 
 
 # grid_partition -----------------
 
@@ -111,17 +11,6 @@ num_cells <- function(obj) {
 #' @name GridPartition
 NULL
 #> NULL
-
-# for a continuous variables, splits are just values
-# for a factor variable, a split is a vector of levels (strings)
-
-dummy_X_range <- function(K) {
-  X_range = list()
-  for(k in 1:K) {
-    X_range[[k]] = c(-Inf, Inf)
-  }
-  return(X_range)
-}
 
 #' Create a null grid_partition
 #' 
@@ -167,22 +56,80 @@ is.grid_partition <- function(x) {
 } 
 
 
-#First element is most insignificant (fastest changing), rather than lexicographic
-#cell_i and return value are 1-indexed
-segment_indexes_from_cell_i <- function(cell_i, n_segments) {
-  K = length(n_segments)
-  size = cumprod(n_segments)
-  if(cell_i > size[K])
-    print("Error: too big")
-  index = rep(0, K)
-  cell_i_rem = cell_i-1 #convert to 0-indexing
-  for(k in 1:K) {
-    index[k] = cell_i_rem %% n_segments[k]
-    cell_i_rem = cell_i_rem %/% n_segments[k]
+#' Get X_range
+#' 
+#' Gets the "range" of each variable in X. For numeric variables this is (min, max).
+#' For factors this means vector of levels.  
+#'
+#' @param X data
+#'
+#' @return list of length K with each element being the "range" along that dimension
+#' @export
+get_X_range <- function(X) {
+  if(is_sep_sample(X))
+    X = do.call("rbind", X)
+  if(is.matrix(X)) {
+    are_equal(mode(X), "numeric")
   }
-  index = index+1 #convert from 0-indexing
-  return(index)
+  else {
+    assert_that(is.data.frame(X))
+    if(inherits(X, "tbl")) X = as.data.frame(X) #tibble's return tibble (rather than vector) for X[,k], making is.factor(X[,k]) and others fail. Could switch to doing X[[k]] for df-like objects
+    for(k in seq_len(ncol(X))) are_equal(mode(X[[k]]), "numeric")
+  }
+  assert_that(ncol(X)>=1)
+  
+  X_range = list()
+  K = ncol(X)
+  for(k in 1:K) {
+    X_k = X[, k]
+    X_range[[k]] = if(is.factor(X_k)) levels(X_k) else range(X_k) #c(min, max)
+  }
+  return(X_range)
 }
+
+
+#' Get factor describing cell number fo each observation
+#' 
+#' Note that currently if X has values more extreme (e.g., for numeric or factor levels ) than was used to generate the partition
+#' then we will return NA unless you provide and updated X_range.
+#'
+#' @param partition partition
+#' @param X X data or list of X
+#' @param X_range (Optional) overrides the partition$X_range
+#'
+#' @return Factor
+#' @export
+get_factor_from_partition <- function(partition, X, X_range=NULL) {
+  facts = get_factors_from_partition(partition, X, X_range=X_range)
+  return(interaction_m(facts, is_sep_sample(X)))
+}
+
+
+#' @describeIn num_cells grid_partition
+#' @export
+num_cells.grid_partition <- function(obj) {
+  return(prod(obj$nsplits_by_dim+1))
+}
+
+#' Print grid_partition
+#' 
+#' Prints a data.frame with options
+#'
+#' @param x partition object
+#' @param do_str If True, use a string like "(a, b]", otherwise have two separate columns with a and b
+#' @param drop_unsplit If True, drop columns for variables overwhich the partition did not split
+#' @param digits digits Option
+#' @param ... Additional arguments. Passed to data.frame
+#'
+#' @return string (and displayed)
+#' @export
+print.grid_partition <- function(x, do_str=TRUE, drop_unsplit=TRUE, digits=NULL, ...) {
+  #To check: digits
+  assert_that(is.flag(do_str), is.flag(drop_unsplit))
+  return(print(get_desc_df.grid_partition(x, do_str=do_str, drop_unsplit=drop_unsplit, digits=digits), 
+               digits=digits, ...))
+}
+
 
 #' Get descriptive data.frame for grid_partition
 #' 
@@ -280,36 +227,74 @@ add_partition_split <- function(obj, s) {
   return(obj)
 }
 
+get_factors_from_splits_dim <- function(X_k, X_k_range, s_by_dim_k) {
+  if(mode(X_k_range)=="character") {
+    windows = get_windows_cat(s_by_dim_k, X_k_range)
+    fac = X_k
+    new_name_map = levels(fac)
+    new_names = c()
+    for(window in windows) {
+      new_name = if(length(window)>1) paste0("{", paste(window, collapse=","), "}") else window[1]
+      new_name_map[levels(fac) %in% window] = new_name
+      new_names = c(new_names, new_name)
+    }
+    levels(fac) <- new_name_map
+    fac = factor(fac, new_names)
+  }
+  else {
+    bottom_break = X_k_range[1]
+    top_break = X_k_range[2]
+    #if(nsplits_by_dim_k>0) {
+    #bottom_split = s_by_dim_k[1]
+    #if(bottom_split==bottom_break)
+    bottom_break = bottom_break-1 #not needed
+    #}
+    top_break = top_break+1
+    breaks = c(bottom_break, s_by_dim_k, top_break)
+    fac = cut(X_k, breaks, labels=NULL, include.lower=TRUE) #right=FALSE makes [a,b) segments. labels=FALSE makes just numeric vector
+  }
+  return(fac)
+}
+
+get_factors_from_splits_dim_m <- function(X, X_k_range, s_by_dim_k, k) {
+  M_mult = is_sep_sample(X)
+  if(!M_mult)
+    return(get_factors_from_splits_dim(X[,k], X_k_range, s_by_dim_k))
+  return(lapply(X, function(X_s) get_factors_from_splits_dim(X_s[,k], X_k_range, s_by_dim_k)))
+}
+
+# for a continuous variables, splits are just values
+# for a factor variable, a split is a vector of levels (strings)
+
+dummy_X_range <- function(K) {
+  X_range = list()
+  for(k in 1:K) {
+    X_range[[k]] = c(-Inf, Inf)
+  }
+  return(X_range)
+}
+
+#First element is most insignificant (fastest changing), rather than lexicographic
+#cell_i and return value are 1-indexed
+segment_indexes_from_cell_i <- function(cell_i, n_segments) {
+  K = length(n_segments)
+  size = cumprod(n_segments)
+  if(cell_i > size[K])
+    print("Error: too big")
+  index = rep(0, K)
+  cell_i_rem = cell_i-1 #convert to 0-indexing
+  for(k in 1:K) {
+    index[k] = cell_i_rem %% n_segments[k]
+    cell_i_rem = cell_i_rem %/% n_segments[k]
+  }
+  index = index+1 #convert from 0-indexing
+  return(index)
+}
+
 partition_from_split_seq <- function(split_seq, X_range, varnames=NULL, max_include=Inf) {
   part = grid_partition(X_range, varnames)
   for(i in seq_len(min(length(split_seq), max_include))) part = add_partition_split(part, split_seq[[i]])
   return(part)
-}
-
-
-#' @describeIn num_cells grid_partition
-#' @export
-num_cells.grid_partition <- function(obj) {
-  return(prod(obj$nsplits_by_dim+1))
-}
-
-#' Print grid_partition
-#' 
-#' Prints a data.frame with options
-#'
-#' @param x partition object
-#' @param do_str If True, use a string like "(a, b]", otherwise have two separate columns with a and b
-#' @param drop_unsplit If True, drop columns for variables overwhich the partition did not split
-#' @param digits digits Option
-#' @param ... Additional arguments. Passed to data.frame
-#'
-#' @return string (and displayed)
-#' @export
-print.grid_partition <- function(x, do_str=TRUE, drop_unsplit=TRUE, digits=NULL, ...) {
-  #To check: digits
-  assert_that(is.flag(do_str), is.flag(drop_unsplit))
-  return(print(get_desc_df.grid_partition(x, do_str=do_str, drop_unsplit=drop_unsplit, digits=digits), 
-               digits=digits, ...))
 }
 
 get_factors_from_partition <- function(partition, X, X_range=NULL) {
@@ -334,27 +319,11 @@ get_factors_from_partition <- function(partition, X, X_range=NULL) {
   return(factors_by_dim)
 }
 
-#' Get factor describing cell number fo each observation
-#' 
-#' Note that currently if X has values more extreme (e.g., for numeric or factor levels ) than was used to generate the partition
-#' then we will return NA unless you provide and updated X_range.
-#'
-#' @param partition partition
-#' @param X X data or list of X
-#' @param X_range (Optional) overrides the partition$X_range
-#'
-#' @return Factor
-#' @export
-get_factor_from_partition <- function(partition, X, X_range=NULL) {
-  facts = get_factors_from_partition(partition, X, X_range=X_range)
-  return(interaction_m(facts, is_sep_sample(X)))
-}
-
 # partition_split ---------------------
 
 #' Create partition_split
 #' 
-#' Describes a single partition split. Used with \code{\link{add_partition_split}}
+#' Describes a single partition split. Used with \code{\link{add_partition_split}}.
 #'
 #' @param k dimension
 #' @param X_k_cut cut value
@@ -393,41 +362,240 @@ print.partition_split <- function(x, ...) {
 
 # Search algo --------------------
 
-#if not mid-point then the all but the last are the splits
-get_usable_break_points <- function(breaks_per_dim, X, X_range, dim_cat, mid_point=TRUE) {
-  if(is_sep_sample(X)) X = X[[1]]
-  K = ncol(X)
-  #old code
-  if(is.null(breaks_per_dim)) {
-    breaks_per_dim = list()
-    for(k in 1:K) {
-      if(!k %in% dim_cat) {
-        u = unique(sort(X[, k]))
-        if(mid_point) {
-          breaks_per_dim[[k]] = u[-length(u)] + diff(u) / 2
-        }
-        else {
-          breaks_per_dim[[k]] = u[-length(u)] #skip last point
-        }
+
+#' Fit grid_partition
+#' 
+#' Fit partition on some data, optionally finding best lambda using CV and then re-fiting on full data.
+#' 
+#' Returns the partition and information about the fitting process
+#'  
+#' @section Multiple estimates:
+#' With multiple core estimates (M) there are 3 options (the first two have the same sample across treatment effects).\enumerate{
+#'  \item DS.MULTI_SAMPLE: Multiple pairs of (Y_{m},W_{m}). y,X,d are then lists of length M. Each element then has the typical size
+#'     The N_m may differ across m. The number of columns of X will be the same across m.
+#'  \item DS.MULTI_D: Multiple treatments and a single outcome. d is then a NxM matrix.
+#'  \item DS.MULTI_Y: A single treatment and multiple outcomes. y is then a NXM matrix.
+#' }
+#'
+#' @param y Nx1 matrix of outcome (label/target) data. With multiple core estimates see Details below.
+#' @param X NxK matrix of features (covariates). With multiple core estimates see Details below.
+#' @param d (Optional) NxP matrix (with colnames) of treatment data. If all equally important they 
+#'          should be normalized to have the same variance. With multiple core estimates see Details below.
+#' 
+#' @param X_aux aux X sample to compute statistics on (OOS data)
+#' @param d_aux aux d sample to compute statistics on (OOS data)
+#' @param max_splits Maximum number of splits even if splits continue to improve OOS fit
+#' @param max_cells Maximum number of cells even if more splits continue to improve OOS fit
+#' @param min_size Minimum cell size when building full grid, cv_tr will use (F-1)/F*min_size, cv_te doesn't use any.
+#' @param cv_folds Number of CV Folds or a vector of foldids. 
+#'                If m_mode==DS.MULTI_SAMPLE, then a list with foldids per Dataset.
+#' @param verbosity 0 print no message. 
+#'                  1 prints progress bar for high-level loops. 
+#'                  2 prints detailed output for high-level loops. 
+#'                  Nested operations decrease verbosity by 1.
+#' @param breaks_per_dim NULL (for all possible breaks); 
+#'                       K-length vector with # of break (chosen by quantiles); or 
+#'                       K-dim list of vectors giving potential split points for non-categorical 
+#'                         variables (can put c(0) for categorical). 
+#'                      Similar to 'discrete splitting' in CausalTree though their they do separate split-points 
+#'                      for treated and controls.
+#' @param potential_lambdas potential lambdas to search through in CV
+#' @param X_range list of min/max for each dimension (e.g., from \code{\link{get_X_range}})
+#' @param bucket_min_n Minimum number of observations needed between different split checks
+#' @param bucket_min_d_var Ensure positive variance of d for the observations between different split checks
+#' @param obj_fn Default is \code{\link{eval_mse_hat}}. User-provided must allow same signature.
+#' @param est_plan \link{EstimatorPlan}.
+#' @param partition_i Default NA. Use this to avoid CV
+#' @param pr_cl Default NULL. Parallel cluster. Used for:\enumerate{
+#'                \item CVing the optimal lambda, 
+#'                \item fitting full tree (at each split going across dimensions), 
+#'                \item fitting trees over the bumped samples
+#'              }
+#' @param bump_samples Number of bump bootstraps (default 0), or list of such length where each items is a bootstrap sample.
+#'                     If m_mode==DS.MULTI_SAMPLE then each item is a sublist with such bootstrap samples over each dataset.
+#' @param bump_ratio For bootstraps the ratio of sample size to sample (between 0 and 1, default 1)
+#'
+#' @return An object.
+#'         \item{partition}{Grid Partition (type=\code{\link{grid_partition}})}
+#'         \item{is_obj_val_seq}{Full sequence of in-sample objective function values}
+#'         \item{complexity_seq}{Full sequence of partition complexities (num_cells - 1)}
+#'         \item{partition_i}{Index of partition chosen}
+#'         \item{partition_seq}{Full sequence of Grid Partitions}
+#'         \item{split_seq}{Full sequence of splits (type=\code{\link{partition_split}})}
+#'         \item{lambda}{lambda chosen}
+#'         \item{folds_index_out}{List of the held-out observations for each fold (e.g., we might have generated them)}
+#' @export
+fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, max_cells=Inf, 
+                          min_size=3, cv_folds=2, verbosity=0, breaks_per_dim=NULL, potential_lambdas=NULL, 
+                          X_range=NULL, bucket_min_n=NA, bucket_min_d_var=FALSE, obj_fn, 
+                          est_plan, partition_i=NA, pr_cl=NULL, bump_samples=0, bump_ratio=1, ...) {
+  #Hidden params:
+  # - @param lambda.1se Use the 1se rule to pick the best lambda
+  # - @param valid_fn Function to quickly check if partition could be valid. User can override.
+  # - @param N_est N of samples in the Estimation dataset
+  # - @param nsplits_k_warn_limit
+  # - @param bump_complexity, method 1 is c(FALSE, FALSE), method 2 is c(FALSE, TRUE), and method 3 is c(TRUE)
+  extra_params = list(...)
+  valid_fn = NULL
+  lambda.1se=FALSE
+  N_est=NA
+  nsplits_k_warn_limit=200
+  bump_complexity=list(doCV=FALSE, incl_comp_in_pick=FALSE)
+  if(length(extra_params)>0) {
+    if("valid_fn" %in% names(extra_params)) valid_fn = extra_params[['valid_fn']]
+    if("lambda.1se" %in% names(extra_params)) lambda.1se = extra_params[['lambda.1se']]
+    if("N_est" %in% names(extra_params)) N_est = extra_params[['N_est']]
+    if("nsplits_k_warn_limit" %in% names(extra_params)) nsplits_k_warn_limit = extra_params[['nsplits_k_warn_limit']]
+    if("bump_complexity" %in% names(extra_params)) bump_complexity = extra_params[['bump_complexity']]
+    assert_that(all(names(extra_params) %in% c("valid_fn", "lambda.1se", "N_est","nsplits_k_warn_limit", "bump_complexity")))
+  }
+  
+  #To check: y, X, d, N_est, X_aux, d_aux, breaks_per_dim, potential_lambdas, X_range, bucket_min_n
+  assert_that(max_splits>0, max_cells>0, min_size>0, is.flag(lambda.1se), is.flag(bucket_min_d_var), 
+              inherits(est_plan, "estimator_plan") || (is.list(est_plan) && inherits(est_plan[[1]], "estimator_plan"))) #verbosity can be negative if decrementd from a fit_estimate call
+  list[M, m_mode, N, K] = get_sample_type(y, X, d, checks=TRUE)
+  if(is_sep_sample(X) && length(cv_folds)>1) {
+    assert_that(is.list(cv_folds) && length(cv_folds)==M)
+  }
+  check_M_K(M, m_mode, K, X_aux, d_aux)
+  do_cv = is.na(partition_i) && (is.null(potential_lambdas) || length(potential_lambdas)>0)
+  do_bump = length(bump_samples)>1 || bump_samples > 0
+  if(!do_cv) assert_that(bump_complexity$incl_comp_in_pick==FALSE)
+  if(do_bump && bump_complexity$doCV) {
+    if(length(bump_samples==1)) bump_samples = list(bump_samples, bump_samples)
+    cv_bump_samples = bump_samples[[1]]
+    bump_samples = bump_samples[[2]]
+  }
+  else cv_bump_samples=0
+  
+  if(is.null(X_range)) X_range = get_X_range(X)
+  if(!is.list(breaks_per_dim) && length(breaks_per_dim)==1) breaks_per_dim = get_quantile_breaks(X, X_range, g=breaks_per_dim)
+  if(is.null(valid_fn)) valid_fn = valid_partition
+  
+  if(verbosity>0) cat("Grid: Started.\n")
+  
+  
+  if(verbosity>0) cat("Grid: Fitting grid structure on full set\n")
+  fit_ret = fit_partition_full(y, X, d, X_aux, d_aux, X_range=X_range, max_splits=max_splits, 
+                               max_cells=max_cells, min_size=min_size,  verbosity=verbosity-1, 
+                               breaks_per_dim=breaks_per_dim, N_est, bucket_min_n=bucket_min_n, 
+                               bucket_min_d_var=bucket_min_d_var, obj_fn=obj_fn, allow_empty_aux=FALSE, 
+                               allow_est_errors_aux=FALSE, min_size_aux=1, est_plan=est_plan, 
+                               pr_cl=pr_cl, valid_fn=valid_fn, nsplits_k_warn_limit=nsplits_k_warn_limit)
+  list[partition_seq, is_obj_val_seq, split_seq] = fit_ret
+  complexity_seq = sapply(partition_seq, num_cells) - 1
+  
+  folds_index_out = NA
+  if(!is.na(partition_i)) {
+    lambda = NA
+    max_splits = partition_i-1
+    if(length(partition_seq)< partition_i) {
+      cat("Note: Couldn't build grid to desired granularity. Using most granular")
+      partition_i = length(partition_seq)
+    }
+    
+  }
+  else {
+    if(do_cv) {
+      list[nfolds, folds_ret, foldids] = expand_fold_info(y, cv_folds, m_mode)
+      lambda = cv_pick_lambda(y=y, X=X, d=d, folds_ret=folds_ret, nfolds=nfolds, potential_lambdas=potential_lambdas, N_est=N_est, max_splits=max_splits, max_cells=max_cells, 
+                              min_size=min_size, verbosity=verbosity, breaks_per_dim=breaks_per_dim, X_range=X_range, lambda.1se=lambda.1se, 
+                              bucket_min_n=bucket_min_n, bucket_min_d_var=bucket_min_d_var, obj_fn=obj_fn,
+                              est_plan=est_plan, pr_cl=pr_cl, valid_fn=valid_fn, cv_bump_samples=cv_bump_samples, bump_ratio=bump_ratio)
+      folds_index_out = folds_ret$indexOut
+    }
+    else {
+      lambda = potential_lambdas[1]
+    }
+    partition_i = which.min(is_obj_val_seq + lambda*complexity_seq)
+  }
+
+  
+  if(do_bump) {
+    if(verbosity>0) cat("Grid > Bumping: Started.\n")
+    
+    if(bump_complexity$incl_comp_in_pick) { 
+      best_val = is_obj_val_seq[partition_i] + lambda*complexity_seq[partition_i]
+    }
+    else {
+      best_val = is_obj_val_seq[partition_i]
+    }
+    
+    b_rets = gen_bumped_partitions(bump_samples, bump_ratio, N, m_mode, verbosity, pr_cl, min_size=min_size*bump_ratio, 
+                                   y=y, X_d=X, d=d, X_aux=X_aux, d_aux=d_aux, X_range=X_range, max_splits=max_splits, 
+                                   max_cells=max_cells,  
+                                   breaks_per_dim=breaks_per_dim, N_est=N_est, bucket_min_n=bucket_min_n, 
+                                   bucket_min_d_var=bucket_min_d_var, obj_fn=obj_fn, 
+                                   min_size_aux=min_size, est_plan=est_plan, 
+                                   valid_fn=valid_fn)
+    bump_B = length(b_rets)
+    partition_i_b = partition_i #default
+    
+    best_b = NA
+    for(b in seq_len(bump_B)) {
+      b_ret = b_rets[[b]]
+      if(do_cv) {
+        b_complexity_seq = sapply(b_ret$partition_seq, num_cells) - 1
+        partition_i_b = which.min(b_ret$is_obj_val_seq + lambda*b_complexity_seq)
       }
       else {
-        breaks_per_dim[[k]] = c(0) #Dummy just for place=holder
-      }
-    }
-  }
-  else { #make sure they didn't include the lowest point
-    for(k in 1:K) {
-      if(!k %in% dim_cat) {
-        n_k = length(breaks_per_dim[[k]])
-        if(breaks_per_dim[[k]][n_k]==X_range[[k]][2]) {
-          breaks_per_dim[[k]] = breaks_per_dim[[k]][-n_k]
+        if(length(b_ret$partition_seq)<partition_i_b) {
+          cat("Note: Couldn't build grid to desired granularity. Using most granular\n")
+          partition_i_b = length(b_ret$partition_seq)
         }
       }
-      breaks_per_dim[[k]] = unname(breaks_per_dim[[k]]) #names messed up the get_desc_df() (though not in debugSource)
+      partition_b = b_ret$partition_seq[[partition_i_b]]
+      
+      obj_ret = obj_fn(y, X, d, N_est=N_est, partition=partition_b, est_plan=est_plan, sample="trtr")
+      if(obj_ret[2]>0 | obj_ret[3]>0) next #N_cell_empty, N_cell_error
+      if(bump_complexity$incl_comp_in_pick) {
+        bump_val = obj_ret[1] + lambda*b_ret[partition_i_b]
+      }
+      else {
+        bump_val = obj_ret[1]
+      }
+      
+      if(bump_val < best_val){
+        best_val = bump_val
+        best_b = b
+      }
+    }
+    if(!is.na(best_b)) {
+      if(verbosity>0) {
+        cat(paste("Grid > Bumping: Finished. Picking bumped partition."))
+        cat(paste(" Old (unbumped) is_obj_val_seq=[", paste(is_obj_val_seq, collapse=" "), "]."))
+        cat(paste(" Old (unbumped) complexity_seq=[", paste(complexity_seq, collapse=" "), "].\n"))
+      }
+      list[partition_seq, is_obj_val_seq_best_b, split_seq] = b_rets[[best_b]]
+      if(do_cv) {
+        b_complexity_seq = sapply(b_rets[[best_b]]$partition_seq, num_cells) - 1
+        partition_i = which.min(b_rets[[best_b]]$is_obj_val_seq + lambda*b_complexity_seq)
+      } 
+      complexity_seq = sapply(partition_seq, num_cells) - 1
+      is_obj_val_seq = sapply(partition_seq, function(p){
+        obj_fn(y, X, d, N_est=N_est, partition=p, est_plan=est_plan, sample="trtr")[1]
+      })
+    }
+    else { 
+      if(verbosity>0) cat(paste("Grid > Bumping: Finished. No bumped partitions better than original.\n"))
     }
   }
-  return(breaks_per_dim)
+  
+  if(verbosity>0) {
+    #print(partition_seq)
+    cat(paste("Grid: Finished. is_obj_val_seq=[", paste(is_obj_val_seq, collapse=" "), "]."))
+    if(do_cv) {
+      cat(paste(" complexity_seq=[", paste(complexity_seq, collapse=" "), "]."))
+      cat(paste(" best partition=", paste(partition_i, collapse=" "), "."))
+    }
+    cat("\n")
+  }
+  partition = partition_seq[[partition_i]]
+  return(list(partition=partition, is_obj_val_seq=is_obj_val_seq, complexity_seq=complexity_seq, 
+              partition_i=partition_i, partition_seq=partition_seq, split_seq=split_seq, lambda=lambda, 
+              folds_index_out=folds_index_out))
 }
+
 
 #' Get break-points by looking at quantiles
 #' 
@@ -516,15 +684,53 @@ valid_partition <- function(cell_factor, d=NULL, cell_factor_aux=NULL, d_aux=NUL
   return(list(fail=FALSE))
 }
 
-valid_partition_m <- function(M_mult, valid_fn, cell_factor, d, cell_factor_aux=NULL, d_aux=NULL, min_size=0) {
-  if(M_mult) {
-    for(m in 1:length(cell_factor)) {
-      v_ret = valid_fn(cell_factor[[m]], d[[m]], cell_factor_aux[[m]], d_aux[[m]], min_size)
-      if(v_ret$fail) return(v_ret)
+
+gen_bumped_partitions <- function(bump_samples, bump_ratio, N, m_mode, verbosity, pr_cl, ...) {
+  assert_that(bump_ratio>0, bump_ratio<=1)
+  bump_samples = expand_bump_samples(bump_samples, bump_ratio, N, m_mode)
+  bump_B = length(bump_samples)
+  
+  params = c(list(samples=bump_samples, verbosity=verbosity-1, allow_empty_aux=FALSE, allow_est_errors_aux=FALSE, pr_cl=NULL, m_mode=m_mode),
+             list(...))
+  
+  b_rets = my_apply(1:bump_B, fit_partition_bump_b, verbosity==1 || !is.null(pr_cl), pr_cl, params)
+  return(b_rets)
+}
+
+#if not mid-point then the all but the last are the splits
+get_usable_break_points <- function(breaks_per_dim, X, X_range, dim_cat, mid_point=TRUE) {
+  if(is_sep_sample(X)) X = X[[1]]
+  K = ncol(X)
+  #old code
+  if(is.null(breaks_per_dim)) {
+    breaks_per_dim = list()
+    for(k in 1:K) {
+      if(!k %in% dim_cat) {
+        u = unique(sort(X[, k]))
+        if(mid_point) {
+          breaks_per_dim[[k]] = u[-length(u)] + diff(u) / 2
+        }
+        else {
+          breaks_per_dim[[k]] = u[-length(u)] #skip last point
+        }
+      }
+      else {
+        breaks_per_dim[[k]] = c(0) #Dummy just for place=holder
+      }
     }
-    return(list(fail=FALSE))
   }
-  return(valid_fn(cell_factor, d, cell_factor_aux, d_aux, min_size))
+  else { #make sure they didn't include the lowest point
+    for(k in 1:K) {
+      if(!k %in% dim_cat) {
+        n_k = length(breaks_per_dim[[k]])
+        if(breaks_per_dim[[k]][n_k]==X_range[[k]][2]) {
+          breaks_per_dim[[k]] = breaks_per_dim[[k]][-n_k]
+        }
+      }
+      breaks_per_dim[[k]] = unname(breaks_per_dim[[k]]) #names messed up the get_desc_df() (though not in debugSource)
+    }
+  }
+  return(breaks_per_dim)
 }
 
 
@@ -956,41 +1162,87 @@ fit_partition_bump_b <- function(b, samples, y, X_d, d=NULL, m_mode, X_aux, d_au
   fit_partition_full(y=y_b, X=X_b, d=d_b, X_aux=X_aux2, d_aux=d_aux2, verbosity=verbosity, nsplits_k_warn_limit=NA, ...)
 }
 
+# These are bump wrappers
+get_part_for_lambda <- function(obj, lambda, is_bumped=FALSE) {
+  if(is_bumped) {
+    is_obj_val_seq = unlist(lapply(obj, function(f) f$is_obj_val_seq))
+    complexity_seq = unlist(lapply(obj, function(f) sapply(f$partition_seq, num_cells) - 1))
+  }
+  else {
+    is_obj_val_seq = obj$is_obj_val_seq
+    complexity_seq = sapply(obj$partition_seq, num_cells) - 1
+  }
+  partition_i = which.min(is_obj_val_seq + lambda*complexity_seq)
+  return(list(partition_i, obj$partition_seq[[partition_i]]))
+}
+get_num_parts <- function(cvtr_fit, is_bumped=FALSE) {
+  if(is_bumped)
+    return(sum(sapply(cvtr_fit, function(part) length(part$is_obj_val_seq))))
+  return(length(cvtr_fit$is_obj_val_seq))
+}
+
+get_all_lambda_ties <- function(cvtr_fit, is_bumped=FALSE) {
+  if(is_bumped) {
+    return(unlist(lapply(cvtr_fit, function(f) get_lambda_ties(f$is_obj_val_seq, sapply(f$partition_seq, num_cells) - 1))))
+  }
+  return(get_lambda_ties(cvtr_fit$is_obj_val_seq, sapply(cvtr_fit$partition_seq, num_cells) - 1))
+}
+
 # ... params sent to fit_partition_full()
 cv_pick_lambda_f <- function(f, y, X_d, d, folds_ret, nfolds, potential_lambdas, N_est, 
-                             verbosity, obj_fn, cv_tr_min_size, est_plan, ...) {
+                             verbosity, obj_fn, cv_tr_min_size, est_plan, cv_bump_samples, bump_ratio, ...) {
   if(verbosity>0) cat(paste("Grid > CV > Fold", f, "\n"))
   supplied_lambda = !is.null(potential_lambdas)
   if(supplied_lambda) n_lambda = length(potential_lambdas)
   
   list[y_f_tr, y_f_cv, X_f_tr, X_f_cv, d_f_tr, d_f_cv] = split_sample_folds_m(y, X_d, d, folds_ret, f)
 
-  #if(verbosity>0) cat(paste("- Fitting grid structure on fold", f, "of", nfolds, "\n"))
-  fit_ret = fit_partition_full(y_f_tr, X_f_tr, d_f_tr, X_f_cv, d_f_cv, 
-                               min_size=cv_tr_min_size, verbosity=verbosity, 
-                               N_est=N_est, obj_fn=obj_fn, allow_empty_aux=TRUE, 
-                               allow_est_errors_aux=FALSE, min_size_aux=1, est_plan=est_plan, 
-                               nsplits_k_warn_limit=NA, ...) #min_size_aux is weaker than removing est errors
-  list[partition_seq, is_obj_val_seq, split_seq] = fit_ret
-  complexity_seq = sapply(partition_seq, num_cells) - 1
-  
-  if(!supplied_lambda) { #build lambdas. Assuming no slope ties
-    lambda_ties_f = get_lambda_ties(is_obj_val_seq, complexity_seq)
-    col_ret = list(lambda_ties_f=lambda_ties_f, partition_seq=partition_seq, is_obj_val_seq=is_obj_val_seq, 
-                   complexity_seq=complexity_seq)
-  } 
+  do_bump = (length(cv_bump_samples)>1 || cv_bump_samples>0)
+  if(do_bump) {
+    if(length(cv_bump_samples)>0) cv_bump_samples = cv_bump_samples[[f]]
+    list[M, m_mode, N, K] = get_sample_type(y, X_d, d, checks=FALSE)
+    cvtr_fit = gen_bumped_partitions(bump_samples=cv_bump_samples, bump_ratio, N, m_mode, verbosity=verbosity, 
+                                   min_size=cv_tr_min_size*bump_ratio, 
+                                   y=y_f_tr, X_d=X_f_tr, d=d_f_tr, X_aux=X_f_cv, d_aux=d_f_cv, 
+                                   N_est=N_est, obj_fn=obj_fn, allow_empty_aux=TRUE, allow_est_errors_aux=FALSE, 
+                                   min_size_aux=1, est_plan=est_plan, nsplits_k_warn_limit=NA,
+                                   ...)
+  }
   else {
-    col_ret = rep(NA, n_lambda)
-    for(lambda_i in seq_len(n_lambda)) {
-      lambda = potential_lambdas[lambda_i]
-      partition_i = which.min(is_obj_val_seq + lambda*complexity_seq)
-      obj_ret = obj_fn(y_f_cv, X_f_cv, d_f_cv, N_est=N_est, partition=partition_seq[[partition_i]], 
+    cvtr_fit = fit_partition_full(y_f_tr, X_f_tr, d_f_tr, X_f_cv, d_f_cv, 
+                                  min_size=cv_tr_min_size, verbosity=verbosity, 
+                                  N_est=N_est, obj_fn=obj_fn, allow_empty_aux=TRUE, 
+                                  allow_est_errors_aux=FALSE, min_size_aux=1, est_plan=est_plan, 
+                                  nsplits_k_warn_limit=NA, ...) #min_size_aux is weaker than removing est errors
+  }
+  
+  if(!supplied_lambda) {
+    return(cvtr_fit)
+  } 
+  #If we know the lambdas, eval data while we have it
+  return(eval_lambdas(obj_fn, est_plan, potential_lambdas, cvtr_fit, y_f_cv, X_f_cv, d_f_cv, N_est, do_bump))
+}
+
+
+eval_lambdas <- function(obj_fn, est_plan, potential_lambdas, cvtr_fit, y_f_cv, X_f_cv, d_f_cv, N_est, is_bumped) {
+  partition_oos_cache = rep(NA, get_num_parts(cvtr_fit, is_bumped))
+  n_lambda = length(potential_lambdas)
+  
+  lambda_oos = rep(NA, n_lambda)
+  for(lambda_i in seq_len(n_lambda)) {
+    lambda = potential_lambdas[lambda_i]
+    list[partition_i, part] = get_part_for_lambda(cvtr_fit, lambda, is_bumped)
+    if(is.na(partition_oos_cache[partition_i])) {
+      debug = FALSE 
+      if(debug) cat(paste("s_by_dim", paste(part$s_by_dim, collapse=" "), "\n"))
+      obj_ret = obj_fn(y_f_cv, X_f_cv, d_f_cv, N_est=N_est, partition=part, debug=debug, 
                        est_plan=est_plan, sample="trcv")
       oos_obj_val = obj_ret[1]
-      col_ret[lambda_i] = oos_obj_val
+      partition_oos_cache[partition_i] = oos_obj_val
     }
+    lambda_oos[lambda_i] = partition_oos_cache[partition_i]
   }
-  return(col_ret)
+  return(lambda_oos)
 }
 
 # cv_tr_min_size: We don't want this too large as (since we have less data) otherwise we might not find the 
@@ -1007,7 +1259,7 @@ cv_pick_lambda_f <- function(f, y, X_d, d, folds_ret, nfolds, potential_lambdas,
 #       wrongly evaluate the benefit of each subgrid and therefore  pick the wrong one.
 # ... params sent to cv_pick_lambda_f
 cv_pick_lambda <- function(y, X, d, folds_ret, nfolds, potential_lambdas, N_est, min_size, verbosity, lambda.1se=FALSE, 
-                           min_obs_1se=5, obj_fn, cv_tr_min_size=NA, est_plan, pr_cl=NULL, ...) {
+                           min_obs_1se=5, obj_fn, cv_tr_min_size=NA, est_plan, pr_cl=NULL, cv_bump_samples=0, bump_ratio=1, ...) {
   #If potential_lambdas is NULL, then only have to iterate through lambda values that change partition_i (for any fold)
   #If is_obj_val_seq is monotonic then this is easy and can do sequentially, but not sure if this is the case
   supplied_lambda = !is.null(potential_lambdas)
@@ -1017,9 +1269,7 @@ cv_pick_lambda <- function(y, X, d, folds_ret, nfolds, potential_lambdas, N_est,
   }
   else {
     lambda_ties = list()
-    partition_seqs = list()
-    is_obj_val_seqs = list()
-    complexity_seqs = list()
+    cvtr_fits = list()
   }
   if(verbosity>0) cat("Grid > CV: Started.\n")
   if(is.na(cv_tr_min_size)) cv_tr_min_size = as.integer(ifelse(nfolds==2, (2+min_size/2)/2, (nfolds-2)/nfolds)*min_size)
@@ -1027,17 +1277,16 @@ cv_pick_lambda <- function(y, X, d, folds_ret, nfolds, potential_lambdas, N_est,
   params = c(list(y=y, X_d=X, d=d, folds_ret=folds_ret, nfolds=nfolds, potential_lambdas=potential_lambdas, 
                 N_est=N_est, verbosity=verbosity-1,
                 obj_fn=obj_fn, cv_tr_min_size=cv_tr_min_size, 
-                est_plan=est_plan), list(...))
+                est_plan=est_plan, cv_bump_samples=cv_bump_samples), list(...))
   
   col_rets = my_apply(1:nfolds, cv_pick_lambda_f, verbosity==1 || !is.null(pr_cl), pr_cl, params)
+  do_bump = (length(cv_bump_samples)>1 || cv_bump_samples>0)
   
   # Process nfolds loop
   if(!supplied_lambda) {
     for(f in 1:nfolds) {
-      lambda_ties[[f]] = col_rets[[f]]$lambda_ties_f
-      partition_seqs[[f]] = col_rets[[f]]$partition_seq
-      is_obj_val_seqs[[f]] = col_rets[[f]]$is_obj_val_seq
-      complexity_seqs[[f]] = col_rets[[f]]$complexity_seq
+      cvtr_fits[[f]] = col_rets[[f]]
+      lambda_ties[[f]] = get_all_lambda_ties(cvtr_fits[[f]], do_bump)  #build lambdas. Assuming no slope ties
     }
   }
   else {
@@ -1056,25 +1305,10 @@ cv_pick_lambda <- function(y, X, d, folds_ret, nfolds, potential_lambdas, N_est,
     }
     n_lambda = length(potential_lambdas)
     lambda_oos = matrix(NA, nrow=nfolds, ncol=n_lambda)
-    lambda_which_partition = matrix(NA, nrow=nfolds, ncol=n_lambda)
     
     for(f in 1:nfolds) {
       list[y_f_tr, y_f_cv, X_f_tr, X_f_cv, d_f_tr, d_f_cv] = split_sample_folds_m(y, X, d, folds_ret, f)
-      for(lambda_i in 1:n_lambda) {
-        lambda = potential_lambdas[lambda_i]
-        partition_i = which.min(is_obj_val_seqs[[f]] + lambda*complexity_seqs[[f]])
-        if(is.na(lambda_oos[f, lambda_i])) {
-          debug = FALSE 
-          part = partition_seqs[[f]][[partition_i]]
-          if(debug) cat(paste("s_by_dim", paste(part$s_by_dim, collapse=" "), "\n"))
-          obj_ret = obj_fn(y_f_cv, X_f_cv, d_f_cv, N_est=N_est, partition=part, debug=debug, 
-                           est_plan=est_plan, sample="trcv")
-          oos_obj_val = obj_ret[1]
-          lambda_oos[f, lambda_i] = oos_obj_val
-        }
-        lambda_which_partition[f, lambda_i] = partition_i 
-      }
-      
+      lambda_oos[f,] = eval_lambdas(obj_fn, est_plan, potential_lambdas, cvtr_fits[[f]], y_f_cv, X_f_cv, d_f_cv, N_est, do_bump)
     }
   }
   lambda_oos_means = colMeans(lambda_oos)
@@ -1117,226 +1351,4 @@ cv_pick_lambda <- function(y, X, d, folds_ret, nfolds, potential_lambdas, N_est,
   }
   
   return(lambda_star)
-}
-
-#' Fit grid_partition
-#' 
-#' Fit partition on some data, optionally finding best lambda using CV and then re-fiting on full data.
-#' 
-#' Returns the partition and information about the fitting process
-#'  
-#' @section Multiple estimates:
-#' With multiple core estimates (M) there are 3 options (the first two have the same sample across treatment effects).\enumerate{
-#'  \item DS.MULTI_SAMPLE: Multiple pairs of (Y_{m},W_{m}). y,X,d are then lists of length M. Each element then has the typical size
-#'     The N_m may differ across m. The number of columns of X will be the same across m.
-#'  \item DS.MULTI_D: Multiple treatments and a single outcome. d is then a NxM matrix.
-#'  \item DS.MULTI_Y: A single treatment and multiple outcomes. y is then a NXM matrix.
-#' }
-#'
-#' @param y Nx1 matrix of outcome (label/target) data. With multiple core estimates see Details below.
-#' @param X NxK matrix of features (covariates). With multiple core estimates see Details below.
-#' @param d (Optional) NxP matrix (with colnames) of treatment data. If all equally important they 
-#'          should be normalized to have the same variance. With multiple core estimates see Details below.
-#' 
-#' @param X_aux aux X sample to compute statistics on (OOS data)
-#' @param d_aux aux d sample to compute statistics on (OOS data)
-#' @param max_splits Maximum number of splits even if splits continue to improve OOS fit
-#' @param max_cells Maximum number of cells even if more splits continue to improve OOS fit
-#' @param min_size Minimum cell size when building full grid, cv_tr will use (F-1)/F*min_size, cv_te doesn't use any.
-#' @param cv_folds Number of CV Folds or a vector of foldids. 
-#'                If m_mode==DS.MULTI_SAMPLE, then a list with foldids per Dataset.
-#' @param verbosity 0 print no message. 
-#'                  1 prints progress bar for high-level loops. 
-#'                  2 prints detailed output for high-level loops. 
-#'                  Nested operations decrease verbosity by 1.
-#' @param breaks_per_dim NULL (for all possible breaks); 
-#'                       K-length vector with # of break (chosen by quantiles); or 
-#'                       K-dim list of vectors giving potential split points for non-categorical 
-#'                         variables (can put c(0) for categorical). 
-#'                      Similar to 'discrete splitting' in CausalTree though their they do separate split-points 
-#'                      for treated and controls.
-#' @param potential_lambdas potential lambdas to search through in CV
-#' @param X_range list of min/max for each dimension (e.g., from \code{\link{get_X_range}})
-#' @param bucket_min_n Minimum number of observations needed between different split checks
-#' @param bucket_min_d_var Ensure positive variance of d for the observations between different split checks
-#' @param obj_fn Default is \code{\link{eval_mse_hat}}. User-provided must allow same signature.
-#' @param est_plan \link{EstimatorPlan}.
-#' @param partition_i Default NA. Use this to avoid CV
-#' @param pr_cl Default NULL. Parallel cluster. Used for:\enumerate{
-#'                \item CVing the optimal lambda, 
-#'                \item fitting full tree (at each split going across dimensions), 
-#'                \item fitting trees over the bumped samples
-#'              }
-#' @param bump_samples Number of bump bootstraps (default 0), or list of such length where each items is a bootstrap sample.
-#'                     If m_mode==DS.MULTI_SAMPLE then each item is a sublist with such bootstrap samples over each dataset.
-#' @param bump_ratio For bootstraps the ratio of sample size to sample (between 0 and 1, default 1)
-#'
-#' @return An object.
-#'         \item{partition}{Grid Partition (type=\code{\link{grid_partition}})}
-#'         \item{is_obj_val_seq}{Full sequence of in-sample objective function values}
-#'         \item{complexity_seq}{Full sequence of partition complexities (num_cells - 1)}
-#'         \item{partition_i}{Index of partition chosen}
-#'         \item{partition_seq}{Full sequence of Grid Partitions}
-#'         \item{split_seq}{Full sequence of splits (type=\code{\link{partition_split}})}
-#'         \item{lambda}{lambda chosen}
-#'         \item{folds_index_out}{List of the held-out observations for each fold (e.g., we might have generated them)}
-#' @export
-fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, max_cells=Inf, 
-                          min_size=3, cv_folds=2, verbosity=0, breaks_per_dim=NULL, potential_lambdas=NULL, 
-                          X_range=NULL, bucket_min_n=NA, bucket_min_d_var=FALSE, obj_fn, 
-                          est_plan, partition_i=NA, pr_cl=NULL, bump_samples=0, bump_ratio=1, ...) {
-  #Hidden params:
-  # - @param lambda.1se Use the 1se rule to pick the best lambda
-  # - @param valid_fn Function to quickly check if partition could be valid. User can override.
-  # - @param N_est N of samples in the Estimation dataset
-  # - @param nsplits_k_warn_limit
-  extra_params = list(...)
-  valid_fn = NULL
-  lambda.1se=FALSE
-  N_est=NA
-  nsplits_k_warn_limit=200
-  if(length(extra_params)>0) {
-    if("valid_fn" %in% names(extra_params)) valid_fn = extra_params[['valid_fn']]
-    if("lambda.1se" %in% names(extra_params)) lambda.1se = extra_params[['lambda.1se']]
-    if("N_est" %in% names(extra_params)) N_est = extra_params[['N_est']]
-    if("nsplits_k_warn_limit" %in% names(extra_params)) nsplits_k_warn_limit = extra_params[['nsplits_k_warn_limit']]
-    assert_that(all(names(extra_params) %in% c("valid_fn", "lambda.1se", "N_est","nsplits_k_warn_limit")))
-  }
-  
-  #To check: y, X, d, N_est, X_aux, d_aux, breaks_per_dim, potential_lambdas, X_range, bucket_min_n
-  assert_that(max_splits>0, max_cells>0, min_size>0, is.flag(lambda.1se), is.flag(bucket_min_d_var), 
-              inherits(est_plan, "estimator_plan") || (is.list(est_plan) && inherits(est_plan[[1]], "estimator_plan"))) #verbosity can be negative if decrementd from a fit_estimate call
-  list[M, m_mode, N, K] = get_sample_type(y, X, d, checks=TRUE)
-  if(is_sep_sample(X) && length(cv_folds)>1) {
-    assert_that(is.list(cv_folds) && length(cv_folds)==M)
-  }
-  check_M_K(M, m_mode, K, X_aux, d_aux)
-  do_cv = is.na(partition_i)
-  
-  if(is.null(X_range)) X_range = get_X_range(X)
-  if(!is.list(breaks_per_dim) && length(breaks_per_dim)==1) breaks_per_dim = get_quantile_breaks(X, X_range, g=breaks_per_dim)
-  if(is.null(valid_fn)) valid_fn = valid_partition
-  
-  if(verbosity>0) cat("Grid: Started.\n")
-  
-  
-  if(verbosity>0) cat("Grid: Fitting grid structure on full set\n")
-  fit_ret = fit_partition_full(y, X, d, X_aux, d_aux, X_range=X_range, max_splits=max_splits, 
-                               max_cells=max_cells, min_size=min_size,  verbosity=verbosity-1, 
-                               breaks_per_dim=breaks_per_dim, N_est, bucket_min_n=bucket_min_n, 
-                               bucket_min_d_var=bucket_min_d_var, obj_fn=obj_fn, allow_empty_aux=FALSE, 
-                               allow_est_errors_aux=FALSE, min_size_aux=1, est_plan=est_plan, 
-                               pr_cl=pr_cl, valid_fn=valid_fn, nsplits_k_warn_limit=nsplits_k_warn_limit)
-  list[partition_seq, is_obj_val_seq, split_seq] = fit_ret
-  complexity_seq = sapply(partition_seq, num_cells) - 1
-  
-  if(do_cv) {
-    list[nfolds, folds_ret, foldids] = expand_fold_info(y, cv_folds, m_mode)
-
-    
-    if(is.null(potential_lambdas) | length(potential_lambdas)>1) {
-      lambda = cv_pick_lambda(y=y, X=X, d=d, folds_ret=folds_ret, nfolds=nfolds, potential_lambdas=potential_lambdas, N_est=N_est, max_splits=max_splits, max_cells=max_cells, 
-                              min_size=min_size, verbosity=verbosity, breaks_per_dim=breaks_per_dim, X_range=X_range, lambda.1se=lambda.1se, 
-                              bucket_min_n=bucket_min_n, bucket_min_d_var=bucket_min_d_var, obj_fn=obj_fn,
-                              est_plan=est_plan, pr_cl=pr_cl, valid_fn=valid_fn)
-    }
-    else {
-      lambda = potential_lambdas[1]
-    }
-    folds_index_out = folds_ret$indexOut
-    
-    #lambda = max(lambda, 1e-8*abs(min(is_obj_val_seq))) #min_lambda option
-    
-    partition_best = which.min(is_obj_val_seq + lambda*complexity_seq)
-    partition_i = partition_best
-  }
-  else {
-    assert_that(partition_i>0)
-    lambda = NA
-    folds_index_out = NA
-    max_splits = partition_i-1
-    
-    if(length(partition_seq)< partition_i) {
-      cat("Note: Couldn't build grid to desired granularity. Using most granular")
-      partition_i = length(partition_seq)
-    }
-  }
-  
-  if(length(bump_samples)>1 || bump_samples != 0) {
-    if(verbosity>0) cat("Grid > Bumping: Started.\n")
-    assert_that(bump_ratio>0, bump_ratio<=1)
-
-    if(do_cv) n_cv_cells = (complexity_seq + 1)[partition_i]
-    best_val = is_obj_val_seq[partition_i]
-    partition_i_b = partition_i
-    
-    if(length(bump_samples)==1) {
-      bump_B = bump_samples
-      bump_samples <- lapply(seq_len(bump_samples), function(b){sample_m(bump_ratio, N, m_mode==DS.MULTI_SAMPLE)})  
-    }
-    else {
-      bump_B = length(bump_samples)
-    }
-
-    params = list(samples=bump_samples, y=y, X_d=X, d=d, m_mode=m_mode, X_aux=X_aux, d_aux=d_aux, X_range=X_range, max_splits=max_splits, 
-                  max_cells=max_cells, min_size=min_size*bump_ratio, verbosity=verbosity-1, 
-                  breaks_per_dim=breaks_per_dim, N_est=N_est, bucket_min_n=bucket_min_n, 
-                  bucket_min_d_var=bucket_min_d_var, obj_fn=obj_fn, allow_empty_aux=FALSE, 
-                  allow_est_errors_aux=FALSE, min_size_aux=min_size, est_plan=est_plan, 
-                  pr_cl=NULL, valid_fn=valid_fn)
-    
-    b_rets = my_apply(1:bump_B, fit_partition_bump_b, verbosity==1 || !is.null(pr_cl), pr_cl, params)
-    
-    best_b = NA
-    for(b in seq_len(bump_B)) {
-      b_ret = b_rets[[b]]
-      if(do_cv) {
-        partition_i_b = which.min(abs(sapply(b_ret$partition_seq, num_cells)-n_cv_cells))
-      }
-      else {
-        if(length(b_ret$partition_seq)<partition_i_b) {
-          cat("Note: Couldn't build grid to desired granularity. Using most granular\n")
-          partition_i_b = length(b_ret$partition_seq)
-        }
-      }
-      partition_b = b_ret$partition_seq[[partition_i_b]]
-      
-      obj_ret = obj_fn(y, X, d, N_est=N_est, partition=partition_b, est_plan=est_plan, sample="trtr")
-      if(obj_ret[2]>0 | obj_ret[3]>0) next #N_cell_empty, N_cell_error
-      if(obj_ret[1] < best_val){
-        best_val = obj_ret[1]
-        best_b = b
-      }
-    }
-    if(!is.na(best_b)) {
-      if(verbosity>0) {
-        cat(paste("Grid > Bumping: Finished. Picking bumped partition."))
-        cat(paste(" Old (unbumped) is_obj_val_seq=[", paste(is_obj_val_seq, collapse=" "), "]."))
-        cat(paste(" Old (unbumped) complexity_seq=[", paste(complexity_seq, collapse=" "), "].\n"))
-      }
-      list[partition_seq, is_obj_val_seq_best_b, split_seq] = b_rets[[best_b]]
-      if(do_cv) partition_i = which.min(abs(sapply(partition_seq, num_cells)-n_cv_cells))
-      complexity_seq = sapply(partition_seq, num_cells) - 1
-      is_obj_val_seq = sapply(partition_seq, function(p){
-        obj_fn(y, X, d, N_est=N_est, partition=p, est_plan=est_plan, sample="trtr")[1]
-      })
-    }
-    else { 
-      if(verbosity>0) cat(paste("Grid > Bumping: Finished. No bumped partitions better than original.\n"))
-    }
-  }
-  
-  if(verbosity>0) {
-    #print(partition_seq)
-    cat(paste("Grid: Finished. is_obj_val_seq=[", paste(is_obj_val_seq, collapse=" "), "]."))
-    if(exists("partition_best")) {
-      cat(paste(" complexity_seq=[", paste(complexity_seq, collapse=" "), "]."))
-      cat(paste(" best partition=", paste(partition_best, collapse=" "), "."))
-    }
-    cat("\n")
-  }
-  partition = partition_seq[[partition_i]]
-  return(list(partition=partition, is_obj_val_seq=is_obj_val_seq, complexity_seq=complexity_seq, 
-              partition_i=partition_i, partition_seq=partition_seq, split_seq=split_seq, lambda=lambda, 
-              folds_index_out=folds_index_out))
 }
