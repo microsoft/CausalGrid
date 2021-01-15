@@ -31,12 +31,12 @@ err_sd = 0.0001
 Let's get some fake data
 ```{r}
 X = matrix(rnorm(N*K), ncol=K) #Features for splitting partition
-d = rbinom(N, 1, 0.5) #treatment
-tau = as.integer(X[,1]>0)*2-1 #true treatment effect
+d = rbinom(N, 1, 0.5) #treatment assignment
+tau = as.integer(X[,1]>0)*2-1 #true treatment effect (just heterogeneous across X1)
 y = d*tau + rnorm(N, 0, err_sd) #outcome
 ```
 
-To save time and avoid cells with too few observations, we only look for a few splits per dimension. 
+To save time and avoid cells with too few observations, we only look for a few splits per dimension. This will split at points equal across the quantile-distribution.
 ```{r}
 est_part = fit_estimate_partition(y, X, d, breaks_per_dim=5)
 ```
@@ -67,11 +67,13 @@ How important are each of the dimensions of X for the objective function? We ref
 ```{r}
 est_part$importance_weights
 ```
+The first feature is the only one that is useful.
 
 Are there any interactions between the importances? (That is if we remove X1, does the importance of X2 change? This is done by dropping pairs of featurs at a time and see how they differ from single-feature droppings)
 ```{r}
 est_part$interaction_weights
 ```
+Essentially no.
 
 Get the observation-level estimated treatment effects.
 ```{r}
@@ -81,17 +83,22 @@ tau_hat = predict_te.estimated_partition(est_part, new_X=X)
 With many estimates, we may wish to account for multiple testing when checking if "there are any negative (or positive) effects"
 ```{r}
 any_neg = test_any_sign_effect(est_part, check_negative=T)
-print(paste("Adjusted 1-side p-values testing if negative:", any_neg$pval1s_fdr))
+print(paste("Adjusted 1-side p-values testing if negative:", paste(any_neg$pval1s_fdr, collapse=", ")))
 ```
+
+Now let's look at a case where there's hereogeneity across all three dimensions.
 ```{r}
 tau_3 = (as.integer(X[,1]>0)*2-1) + (as.integer(X[,2]>0)*2-1)*2 + (as.integer(X[,3]>0)*2-1)*3
-y_3 = d*tau_3 + rnorm(N, 0, err_sd) #outcome
+y_3 = d*tau_3 + rnorm(N, 0, err_sd)
 est_part_3 = fit_estimate_partition(y_3, X, d, breaks_per_dim=5, partition_i=4)
 print(est_part_3)
 ```
-```{r}
+
+One benefit of grid-based partitions is that you can view easily view 2D slices of full heterogeneity space.
+```{r fig.height=3, fig.width=6}
 plts = plot_2D_partition.estimated_partition(est_part_3, c("X1", "X2"))
-require(gridExtra)
+
+suppressPackageStartupMessages(library(gridExtra))
 grid.arrange(plts[[1]], plts[[2]], ncol=2)
 ```
 
@@ -101,8 +108,9 @@ We can improve the partition by controlling for X's (either local-linearly or gl
 ```{r}
 est_part = fit_estimate_partition(y, X, d, breaks_per_dim=5, ctrl_method = "LassoCV", bump_samples = 20, partition_i=2)
 ```
-`LassoCV` is a local-linear approach and we can use the global-flexible approach by setting `ctrl_method="rf"`.
+`LassoCV` is a local-linear approach and we can use the global-flexible approach by setting `ctrl_method="rf"` for a random forest.
 
+# Parallel-processing
 Parallel-processing the outer-loops
 ```{r}
 #library(parallel)
@@ -141,9 +149,13 @@ X_MM = list(X, X)
 est_part_MM = fit_estimate_partition(y_MM, X_MM, d_MM, breaks_per_dim=5, partition_i = 3)
 print(est_part_MM)
 ```
-
+# Mean-outcome prediction
+```{r}
+alpha = as.integer(X[,1]>0)*2-1 #true average outcome effect (just heterogeneous across X1)
+y_y = alpha + rnorm(N, 0, err_sd) #outcome
+est_part_y = fit_estimate_partition(y_y, X, breaks_per_dim=5, partition_i=2)
+print(est_part_y)
+```
 
 # Minor things to add
-- Dealing with factors
 - Implementing own control approach
-- Usage for mean-fitting

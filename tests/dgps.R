@@ -95,12 +95,18 @@ AI_sim <- function(n=500, design=1) {
   return(list(y=Y, X=X, w=w, kappa=kappa))
 }
 
-XOR_sim <- function(n=500) {
+XOR_sim <- function(n=500, const_kappa=TRUE) {
   w = rbinom(n, 1, 0.5)
   K=2
   X = matrix(rnorm(n*K), nrow=n, ncol=K)
   eta = 0
-  kappa = ((X[,1]>0 & X[,2]>0) | (X[,1]<0 & X[,2]<0))*1
+  if(const_kappa) {
+    mag = 1
+  }
+  else {
+    mag = abs(X[,1]) + abs(X[,2])
+  }
+  kappa = ((X[,1]>0 & X[,2]>0) | (X[,1]<0 & X[,2]<0))*mag
   epsilon = rnorm(n, 0, 0.01)
   y = eta + 0.5*(2*w-1)*kappa + epsilon
   return(list(y=y, X=X, w=w, kappa=kappa))

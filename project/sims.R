@@ -37,26 +37,33 @@ minsize=25
 #Sim parameters
 S = 100 #3 100, TODO: Is this just 1!?
 Ns = c(500, 1000) #c(500, 1000)
-D = 4 #3
-Ks = c(2, 2, 10, 20)
 N_test = 8000
+D = 5 #3
+Ks = c(2, 2, 10, 20)
+good_features = list(c(T, F), c(T, T, rep(F, 8)), c(rep(T, 4), rep(F, 16)), c(T,T), c(T,T))
+
 NN = length(Ns)
 NIters = NN*D*S
 
-good_features = list(c(T, F), c(T, T, rep(F, 8)), c(rep(T, 4), rep(F, 16)), c(T,T))
 
 #Execution config
-n_parallel = 10 #1 5; PARALLEL
+n_parallel = 5 #1 5; PARALLEL
 my_seed = 1337
 set.seed(my_seed)
 rf.num.threads = 1 #NULL will multi-treatd, doesn't seem to help much with small data
 
 
+est_names = c("Causal Tree (CT)", "Causal Tree - Adaptive (CT-A)", 
+              "Causal Grid - Matching CT-A size (CG:M)", "Causal Grid (CG)", 
+              "CG + Linear Controls (CG-X)", "CG + RF Controls (CG-RF)", 
+              "CG-X + Bumping (CG-X-B)", "CG-RF + Bumping (CG-RF-B)", 
+              "CG-X-B - Matching CT size (CG-X-B:HM)", "CG-RF-B - Matching CT size (CG-RF-B:HM)")
+
 
 # Helper functions --------
 sim_data <- function(n=500, design=1) {
   if(design<=3) return(AI_sim(n, design))
-  return(XOR_sim(n))
+  return(XOR_sim(n, design==4))
 }
 
 get_iter <- function(d, N_i, s) {
@@ -339,10 +346,11 @@ list[nl_CG_a_RF_b_hm, mse_CG_a_RF_b_hm, pct_good_CG_a_RF_b_hm] = sum_res(results
 
 
 flatten_table <- function(mat) {
-  new_mat = cbind(mat[1,, drop=F], mat[2,, drop=F], mat[3,, drop=F], mat[4,, drop=F])
+  new_mat = matrix(as.vector(t(mat)), nrow=1)
   colnames(new_mat) = rep(c("N=500", "N=1000"), D)
   new_mat
 }
+
 compose_table <- function(mat_CT_h, mat_CT_a, mat_CG_a_am, mat_CG_a, mat_CG_a_LassoCV, mat_CG_a_RF,
                           mat_CG_a_LassoCV_b, mat_CG_a_RF_b, mat_CG_a_LassoCV_b_hm, mat_CG_a_RF_b_hm) {
   new_mat = rbind(flatten_table(mat_CT_h), flatten_table(mat_CT_a), 
@@ -350,17 +358,13 @@ compose_table <- function(mat_CT_h, mat_CT_a, mat_CG_a_am, mat_CG_a, mat_CG_a_La
                   flatten_table(mat_CG_a_LassoCV), flatten_table(mat_CG_a_RF),
                   flatten_table(mat_CG_a_LassoCV_b), flatten_table(mat_CG_a_RF_b),
                   flatten_table(mat_CG_a_LassoCV_b_hm), flatten_table(mat_CG_a_RF_b_hm))
-  rownames(new_mat) = c("Causal Tree (CT)", "Causal Tree - Adaptive (CT-A)", 
-                        "Causal Grid - Matching CT-A complexity (CG(M))", "Causal Grid (CG)", 
-                        "CG w/ Linear Controls (CG-X)", "CG w/ RF Controls (CG-RF)", 
-                        "CG-X w/ Bumping (CG-X-B)", "CG-RF w/ Bumping (CG-RF-B)", 
-                        "CG-X-B - Matching CT complexity (CG-X-B-HM)", "CG-RF-B - Matching CT complexity (CG-RF-B-HM)")
+  rownames(new_mat) = est_names
   new_mat
 }
 
 fmt_table <- function(xtbl, o_fname) {
   capt_ret <- capture.output(file_cont <- print(xtbl, floating=F, comment = F))
-  file_cont = paste0(str_sub(file_cont, end=35), " &\\multicolumn{2}{c}{Design 1}&\\multicolumn{2}{c}{Design 2}&\\multicolumn{2}{c}{Design 3}&\\multicolumn{2}{c}{Design 4}\\\\ \n", str_sub(file_cont, start=36))
+  file_cont = paste0(str_sub(file_cont, end=35), paste0(paste0("&\\multicolumn{2}{c}{Design ", 1:D, "}", collapse=""),"\\\\ \n"), str_sub(file_cont, start=36))
   cat(file_cont, file=o_fname)
 }
 

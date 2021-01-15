@@ -21,7 +21,7 @@ Suggests:
     testthat,
     knitr,
     rmarkdown
-BuildVignettes: false
+BuildVignettes: true
 Imports: Rcpp (>= 1.0.1)
 LinkingTo: Rcpp
 Encoding: UTF-8

@@ -51,7 +51,7 @@ grid_partition <- function(X_range, varnames=NULL) {
 #' @return True if x is a grid_partition
 #' @export
 #' @describeIn grid_partition is grid_partition
-is.grid_partition <- function(x) {
+is_grid_partition <- function(x) {
   inherits(x, "grid_partition")
 } 
 
@@ -343,7 +343,7 @@ partition_split <- function(k, X_k_cut) {
 #' @return Boolean
 #' @export
 #' @describeIn grid_partition_split is grid_partition_split
-is.grid_partition_split <- function(x){ 
+is_grid_partition_split <- function(x){ 
   inherits(x, "partition_split") 
 }
 

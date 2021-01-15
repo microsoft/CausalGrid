@@ -89,7 +89,7 @@ lm_est <- function(lasso=FALSE, control_est=TRUE) {
 #' @return Boolean
 #' @export
 #' @describeIn lm_est is lm_est 
-is.lm_est <- function(x) {inherits(x, "lm_est")}
+is_lm_est <- function(x) {inherits(x, "lm_est")}
 
 dummyVar_common <- function(X, dim_cat) {
   X_new = NULL
@@ -203,7 +203,7 @@ simple_est <- function(te_fn, te_var_fn, dof=2) {
 #' @return Boolean
 #' @export
 #' @describeIn simple_est is simple_est
-is.simple_est <- function(x) {inherits(x, "simple_est")}
+is_simple_est <- function(x) {inherits(x, "simple_est")}
 
 gen_simple_est_plan <- function(has_d=TRUE) {
   if(has_d) {
@@ -253,7 +253,7 @@ grid_rf <- function(num.trees=500, num.threads=NULL, resid_est=TRUE) {
 #' @return Boolean
 #' @export
 #' @describeIn grid_rf is grid_rf
-is.grid_rf <- function(x) {inherits(x, "grid_rf")}
+is_grid_rf <- function(x) {inherits(x, "grid_rf")}
 
 ranger_cross_fit <- function(target, X, cv_folds, num.trees, num.threads) {
   n_folds = max(cv_folds)

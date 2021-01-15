@@ -177,7 +177,7 @@ fit_estimate_partition <- function(y, X, d=NULL, tr_split = 0.5, max_splits=Inf,
 #' @return True if x is an estimated_partition
 #' @export
 #' @describeIn fit_estimate_partition is estimated_partition
-is.estimated_partition <- function(x) {
+is_estimated_partition <- function(x) {
   inherits(x, "estimated_partition")
 } 
 
