@@ -364,7 +364,7 @@ compose_table <- function(mat_CT_h, mat_CT_a, mat_CG_a_am, mat_CG_a, mat_CG_a_La
 
 fmt_table <- function(xtbl, o_fname) {
   capt_ret <- capture.output(file_cont <- print(xtbl, floating=F, comment = F))
-  file_cont = paste0(str_sub(file_cont, end=35), paste0(paste0("&\\multicolumn{2}{c}{Design ", 1:D, "}", collapse=""),"\\\\ \n"), str_sub(file_cont, start=36))
+  file_cont = paste0(str_sub(file_cont, end=29-D*2), paste0(paste0("&\\multicolumn{2}{c}{Design ", 1:D, "}", collapse=""),"\\\\ \n"), str_sub(file_cont, start=26-D*2))
   cat(file_cont, file=o_fname)
 }
 
