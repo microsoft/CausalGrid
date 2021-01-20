@@ -73,7 +73,7 @@ two_groups_data_int <- function(){
   return(list(y=y, X=X))
 }
 
-AI_sim <- function(n=500, design=1) {
+AI_sim <- function(n=500, design=1, err_sd=0.01) {
   w = rbinom(n, 1, 0.5)
   K = c(2, 10, 20)[design]
   X = matrix(rnorm(n*K), nrow=n, ncol=K)
@@ -90,12 +90,12 @@ AI_sim <- function(n=500, design=1) {
     eta = X %*% matrix(c(rep(0.5, 4), rep(1, 4), rep(0, 12)), ncol=1)
     kappa = (X*X_I) %*% matrix(c(rep(1,4), rep(0,16)), ncol=1)
   }
-  epsilon = rnorm(n, 0, 0.01)
+  epsilon = rnorm(n, 0, err_sd)
   Y = eta + 0.5*(2*w-1)*kappa + epsilon
   return(list(y=Y, X=X, w=w, kappa=kappa))
 }
 
-XOR_sim <- function(n=500, const_kappa=TRUE) {
+XOR_sim <- function(n=500, const_kappa=TRUE, err_sd=0.01) {
   w = rbinom(n, 1, 0.5)
   K=2
   X = matrix(rnorm(n*K), nrow=n, ncol=K)
@@ -107,7 +107,7 @@ XOR_sim <- function(n=500, const_kappa=TRUE) {
     mag = abs(X[,1]) + abs(X[,2])
   }
   kappa = ((X[,1]>0 & X[,2]>0) | (X[,1]<0 & X[,2]<0))*mag
-  epsilon = rnorm(n, 0, 0.01)
+  epsilon = rnorm(n, 0, err_sd)
   y = eta + 0.5*(2*w-1)*kappa + epsilon
   return(list(y=y, X=X, w=w, kappa=kappa))
 }

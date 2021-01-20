@@ -120,7 +120,7 @@ sim_cg_fit <- function(y, X, w, tr_sample, verbosity=0, honest=FALSE, do_rf=FALS
 
 sim_cg_vectors <- function(grid_fit, mask, X_te, tau_te) {
   nsplits = grid_fit$partition$nsplits_by_dim
-  preds = predict_te.estimated_partition(grid_fit, new_X=X_te)
+  preds = predict.estimated_partition(grid_fit, new_X=X_te)
   cg_mse = mean((preds - tau_te)^2)
   return(c(num_cells(grid_fit), cg_mse, sum(nsplits[mask]), sum(nsplits)))
 }

@@ -2,12 +2,12 @@
 % Please edit documentation in R/Estimator_plans.R
 \name{lm_est}
 \alias{lm_est}
-\alias{is.lm_est}
+\alias{is_lm_est}
 \title{create an lm_est object}
 \usage{
 lm_est(lasso = FALSE, control_est = TRUE)
 
-is.lm_est(x)
+is_lm_est(x)
 }
 \arguments{
 \item{lasso}{Use Lasso on the train sample to choose control variables}
@@ -28,6 +28,6 @@ Tests whether object is an \code{lm_est}.
 }
 \section{Functions}{
 \itemize{
-\item \code{is.lm_est}: is lm_est
+\item \code{is_lm_est}: is lm_est
 }}
 

@@ -2,7 +2,7 @@
 % Please edit documentation in R/fit_estimate.R
 \name{fit_estimate_partition}
 \alias{fit_estimate_partition}
-\alias{is.estimated_partition}
+\alias{is_estimated_partition}
 \title{Fit Grid Partition and estimate cell stats}
 \usage{
 fit_estimate_partition(
@@ -13,7 +13,7 @@ fit_estimate_partition(
   max_splits = Inf,
   max_cells = Inf,
   min_size = 3,
-  cv_folds = 4,
+  cv_folds = 5,
   potential_lambdas = NULL,
   partition_i = NA,
   verbosity = 0,
@@ -29,7 +29,7 @@ fit_estimate_partition(
   ...
 )
 
-is.estimated_partition(x)
+is_estimated_partition(x)
 }
 \arguments{
 \item{y}{Nx1 matrix of outcome (label/target) data. With multiple core estimates see Details below.}
@@ -98,7 +98,7 @@ interaction - (smart) redo full fitting removing each pair of dimensions
 \value{
 An object with class \code{"estimated_partition"}.
         \item{partition}{\code{\link{grid_partition}} obj defining cuts}
-        \item{cell_stats}{Cell stats from \code{\link{est_cell_stats}} on the est sample}
+        \item{cell_stats}{Cell stats from \code{\link{est_cell_stats}$stats} on the est sample}
         \item{importance_weights}{Importance weights for each feature}
         \item{interaction_weights}{Interaction weights for each pair of features}
         \item{lambda}{lambda used}
@@ -121,7 +121,7 @@ Tests whether the object is an \code{estimated_partition} object.
 }
 \section{Functions}{
 \itemize{
-\item \code{is.estimated_partition}: is estimated_partition
+\item \code{is_estimated_partition}: is estimated_partition
 }}
 
 \section{Multiple estimates}{

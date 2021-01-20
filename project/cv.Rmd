@@ -1,0 +1,153 @@
+---
+title: "CV Analysis"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(foreach)
+library(doSNOW)
+
+library(gsubfn)
+library(CausalGrid)
+```
+
+```{r}
+tau_fn <- function(X) {
+  as.integer(X[,1]>0.5)*2-1
+}
+#True MSE
+eval_mse <-function(y_tr, X_tr, d_tr, y_te, X_te, d_te, partition, est_plan, modified=TRUE, ...) {
+  # Could also add option to use true effect given partition (to remove estimation variance)
+  list[cell_factor_tr, cell_stats_tr] = est_cell_stats(y_tr, X_tr, d_tr, partition, est_plan=est_plan)
+  fit_est_tr = estimated_partition(partition=partition, cell_stats=cell_stats_tr)
+  tau_te = tau_fn(X_te)
+  
+  val = sum((predict(fit_est_tr, X_te)-tau_te)^2)
+  if(modified) val = val - sum(tau_te^2) 
+  
+  return(c(val, 0, 0))
+}
+```
+
+
+Some common parameters
+```{r}
+set.seed(1337)
+N = 1000
+K = 3
+X = matrix(runif(N*K), ncol=K) #Features for splitting partition
+nbreaks_k = 5
+breaks_k = seq(nbreaks_k)/(nbreaks_k+1)
+breaks = list(breaks_k, breaks_k, breaks_k)
+tau = tau_fn(X)
+d = rep(c(0,1), N/2) #treatment assignment
+S = 100
+err_sds = c(1,0.1, 0.01, 0.001) #c(1,0.1, 0.01, 0.001)
+Ks = c(2,5,10) #c(2,5,10)
+cores_to_use = getOption("cl.cores", default=5)
+```
+
+## Noise and CV
+A smaller noise level in the dgp makes it harder for the CV to determine that there is variation in the estimated coefficients between train+test folds. This makes extra-granular partitions not as penalized and therefore due to randomness, more likely to be selected.
+
+Let's get some fake data
+```{r}
+#gen data. Do serially so randomness is the same across par and non-par runs
+y_mats = list()
+for(s in 1:S) {
+  y_mat = matrix(NA, nrow=N, ncol=length(err_sds))
+  for(err_sd_i in 1:length(err_sds)){
+    err_sd = err_sds[err_sd_i]
+    y_mat[,err_sd_i] = d*tau + rnorm(N, 0, err_sd)
+  }
+  y_mats[[s]] = y_mat
+}
+```
+
+```{r}
+`%doChange%` = if(cores_to_use>1) `%dopar%` else `%do%` #so I can just change variable without changing other code for single-threaded
+
+if(cores_to_use>1){
+  pr_cl = makeCluster(cores_to_use)
+  registerDoSNOW(pr_cl)
+} 
+
+# using foreach structure so I can export some globals (couldn't see how to do it with parLapply).
+# using doSNOW instead of generic doparallel as it has a nice progress bar option.
+pb <- txtProgressBar(max = S, style = 3)
+progress <- function(n) setTxtProgressBar(pb, n)
+opts <- list(progress = progress)
+sim_rets = foreach(s=1:S, .packages=c("gsubfn","CausalGrid"), .options.snow = opts) %doChange% { #.errorhandling = "pass", .export=c("tau_fn", "eval_mse")
+  n_cell_cv_s = n_cell_cv_tilde_s = n_cell_cv_rest_s = n_cell_cv_1se_s = matrix(NA, nrow=length(err_sds), ncol=length(Ks))
+  for(err_sd_i in 1:length(err_sds)){
+    y = y_mat[,err_sd_i]
+    for(k_i in 1:length(Ks)) {
+      set.seed(1337)
+      k = Ks[k_i]
+      est_part = fit_estimate_partition(y, X, d, breaks_per_dim=breaks, cv_folds=k)
+      n_cell_cv_s[err_sd_i, k_i] = num_cells(est_part)
+
+      #Check how CV was working
+      #Make sure we do the same splitting
+      list[y_tr, y_es, X_tr, X_es, d_tr, d_es, N_est] = CausalGrid:::split_sample(y, X, d, est_part$index_tr)
+      folds_ret = CausalGrid:::foldids_to_foldlists(est_part$cv_foldid, k)
+      list[lambda, lambda_oos, n_cell_table] = CausalGrid:::cv_pick_lambda(y=y_tr, X=X_tr, d=d_tr, folds_ret=folds_ret, nfolds=k, breaks_per_dim=breaks, X_range=est_part$partition$X_range, obj_fn=eval_mse_hat, est_plan=est_part$est_plan, cv_obj_fn=eval_mse)
+      partition_i_tilde = which.min(est_part$is_obj_val_seq + lambda*est_part$complexity_seq)
+      n_cell_cv_tilde_s[err_sd_i, k_i] = (est_part$complexity_seq+1)[partition_i_tilde]
+      
+      est_part_rest = fit_estimate_partition(y, X, d, breaks_per_dim=breaks, cv_folds=k, max_splits=2)
+      n_cell_cv_rest_s[err_sd_i, k_i] = num_cells(est_part_rest)
+      
+      
+      est_part_1se = fit_estimate_partition(y, X, d, breaks_per_dim=breaks, cv_folds=k, lambda_1se=TRUE)
+      n_cell_cv_1se_s[err_sd_i, k_i] = num_cells(est_part_1se)
+    }
+  }
+  list(n_cell_cv_s=n_cell_cv_s, n_cell_cv_tilde_s=n_cell_cv_tilde_s, n_cell_cv_rest_s=n_cell_cv_rest_s, n_cell_cv_1se_s=n_cell_cv_1se_s)
+}
+close(pb)
+if(cores_to_use>1) stopCluster(pr_cl)
+```
+
+```{r}
+# reshape sim data
+n_cell_cv = n_cell_cv_tilde = n_cell_cv_rest = n_cell_cv_1se = array(NA, dim=c(S, length(err_sds), length(Ks))) 
+for(s in 1:S) {
+  n_cell_cv[s,,] = sim_rets[[s]]$n_cell_cv_s
+  n_cell_cv_tilde[s,,] = sim_rets[[s]]$n_cell_cv_tilde_s
+  n_cell_cv_rest[s,,] = sim_rets[[s]]$n_cell_cv_rest_s
+  n_cell_cv_1se[s,,] = sim_rets[[s]]$n_cell_cv_1se_s
+}
+```
+
+```{r}
+n_cell_cv_mean = apply(n_cell_cv, c(2,3), mean)
+#n_cell_cv_over = apply(n_cell_cv, c(2,3), function(vec) mean(vec>2))
+n_cell_cv_tilde_mean = apply(n_cell_cv_tilde, c(2,3), mean)
+n_cell_cv_rest = apply(n_cell_cv_rest, c(2,3), mean)
+n_cell_cv_1se = apply(n_cell_cv_1se, c(2,3), mean)
+```
+
+```{r}
+print("CV n_cell mean")
+print(n_cell_cv_mean)
+#print("num sims with n_cell_cv>2")
+#print(n_cell_cv_over)
+print("CV (w/ oracle test effect) n_cell mean")
+print(n_cell_cv_tilde_mean)
+print("CV (rest to max_split=3) n_cell mean")
+print(n_cell_cv_rest)
+print("CV (w/ lambda_1se) n_cell mean")
+print(n_cell_cv_1se)
+```

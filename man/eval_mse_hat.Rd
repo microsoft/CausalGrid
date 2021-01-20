@@ -5,12 +5,16 @@
 \title{Evaluate the MSE_hat objective function}
 \usage{
 eval_mse_hat(
-  y,
-  X,
-  d,
+  y_tr,
+  X_tr,
+  d_tr,
+  y_te = NULL,
+  X_te = NULL,
+  d_te = NULL,
   N_est,
   partition = NULL,
-  cell_factor = NULL,
+  cell_factor_tr = NULL,
+  cell_factor_te = NULL,
   est_plan = NULL,
   estimator = NULL,
   debug = FALSE,
@@ -20,18 +24,23 @@ eval_mse_hat(
 )
 }
 \arguments{
-\item{y}{Nx1 matrix of outcome (label/target) data. With multiple core estimates see Details below.}
+\item{y_tr}{y_tr}
 
-\item{X}{NxK matrix of features (covariates). With multiple core estimates see Details below.}
+\item{X_tr}{X_tr}
 
-\item{d}{(Optional) NxP matrix (with colnames) of treatment data. If all equally important they 
-should be normalized to have the same variance. With multiple core estimates see Details below.}
+\item{d_tr}{d_tr}
+
+\item{y_te}{y_te}
+
+\item{X_te}{X_te}
+
+\item{d_te}{d_te}
 
 \item{N_est}{Size of estimation sample. Unused for this objective function.}
 
 \item{partition}{Grid partition. Pass in this or \code{cell_factor}.}
 
-\item{cell_factor}{Factor for cells for each observation. Pass in this or \code{partition}.}
+\item{cell_factor_tr}{Factor for cells for each observation. Pass in this or \code{partition}.}
 
 \item{est_plan}{Estimation plan. If this and  \code{estimator} are null, then one is created as  \code{gen_simple_est_plan(has_d=!is.null(d))}}
 

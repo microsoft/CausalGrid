@@ -1,0 +1,132 @@
+---
+title: "bumping"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(foreach)
+library(doSNOW)
+
+library(gsubfn)
+library(CausalGrid)
+
+library(rprojroot)
+```
+
+```{r}
+root_dir <- rprojroot::find_package_root_file()
+source(paste0(root_dir,"/tests/dgps.R"))
+```
+
+Some common parameters
+```{r}
+set.seed(1337) #data differs across sims, but the bump samples indexes are the same across sims
+N=500
+n_bump = 20
+S=100
+cores_to_use = getOption("cl.cores", default=1)
+```
+
+
+Let's get some fake data
+```{r}
+#gen data. Do serially so randomness is the same across par and non-par runs
+datas = list()
+for(s in 1:S) {
+  datas[[s]] = XOR_sim(n=N)
+}
+```
+
+```{r}
+`%doChange%` = if(cores_to_use>1) `%dopar%` else `%do%` #so I can just change variable without changing other code for single-threaded
+
+if(cores_to_use>1){
+  pr_cl = makeCluster(cores_to_use)
+  registerDoSNOW(pr_cl)
+} 
+
+# using doSNOW instead of generic doparallel as it has a nice progress bar option.
+pb <- txtProgressBar(max = S, style = 3)
+progress_fn <- function(n) setTxtProgressBar(pb, n)
+n_methods = 1 + 1 + 1 + 4
+fixed_names = c("No bumping", "Bumping")
+cv_names = c("No bumping", "Bumping (doCV=F, incl_comp_in_pick=F)", "Bumping (doCV=F, incl_comp_in_pick=T)", 
+             "Bumping (doCV=T, incl_comp_in_pick=F)", "Bumping (doCV=T, incl_comp_in_pick=T)")
+#sim_rets = list()
+#for(s in 1:S){
+sim_rets = foreach(s=1:S, .packages=c("CausalGrid"), .options.snow = list(progress = progress_fn)) %doChange% { #.errorhandling = "pass"
+  #setTxtProgressBar(pb, s) #
+  data_xor = datas[[s]]
+  index_tr = 1:250
+  set.seed(1337)
+  
+  base_args = list(y=data_xor$y, X=data_xor$X, d=data_xor$w, verbosity=0, tr_split=index_tr)
+
+  #Show how bumping helps with fixed depth
+  fixed_args = c(base_args, list(partition_i=3))
+  ret_nobmp_fixed <- do.call(fit_estimate_partition, fixed_args)
+  fixed_b_args = c(fixed_args, list(bump_samples=n_bump))
+  ret_bmp_fixed <- do.call(fit_estimate_partition, c(fixed_b_args, list(bump_complexity=list(doCV=FALSE, incl_comp_in_pick=FALSE))))
+  is_objs = c(ret_nobmp_fixed$is_obj_val_seq[3], ret_bmp_fixed$is_obj_val_seq[3])
+  min_dev = c(min(abs(unlist(ret_nobmp_fixed$partition$s_by_dim))), min(abs(unlist(ret_bmp_fixed$partition$s_by_dim))))
+  max_dev = c(max(abs(unlist(ret_nobmp_fixed$partition$s_by_dim))), max(abs(unlist(ret_bmp_fixed$partition$s_by_dim))))
+
+  #Then add in CV complexity
+  #cv_folds = 2
+  cv_folds = c(rep(1, 125), rep(2, 125))
+  cv_args = c(base_args, list(cv_folds=cv_folds))
+  ret_nobmp_cv <- do.call(fit_estimate_partition, cv_args)
+  cv_b_args = c(cv_args, bump_samples=n_bump)
+  ret_bmpa_cv <- do.call(fit_estimate_partition, c(cv_b_args, list(bump_complexity=list(doCV=FALSE, incl_comp_in_pick=FALSE))))
+  ret_bmpb_cv <- do.call(fit_estimate_partition, c(cv_b_args, list(bump_complexity=list(doCV=FALSE, incl_comp_in_pick=TRUE))))
+  ret_bmpc_cv <- do.call(fit_estimate_partition, c(cv_b_args, list(bump_complexity=list(doCV=TRUE, incl_comp_in_pick=FALSE))))
+  ret_bmpd_cv <- do.call(fit_estimate_partition, c(cv_b_args, list(bump_complexity=list(doCV=TRUE, incl_comp_in_pick=TRUE))))
+  n_cells = c(sapply(list(ret_nobmp_fixed, ret_bmp_fixed, ret_nobmp_cv, ret_bmpa_cv, ret_bmpb_cv, ret_bmpc_cv, ret_bmpd_cv), num_cells))
+  
+  list(is_objs=is_objs, max_dev=max_dev, min_dev=min_dev, n_cells=n_cells)
+  #sim_rets[[s]] = list(is_objs=is_objs, max_dev=max_dev, min_dev=min_dev, n_cells=n_cells)
+}
+close(pb)
+if(cores_to_use>1) stopCluster(pr_cl)
+```
+
+```{r}
+# reshape sim data
+is_obj_mat = matrix(NA, nrow=S, ncol=2)
+max_dev_mat = matrix(NA, nrow=S, ncol=2)
+min_dev_mat = matrix(NA, nrow=S, ncol=2)
+n_cells_mat = matrix(NA, nrow=S, ncol=n_methods)
+for(s in 1:S) {
+  is_obj_mat[s,] = sim_rets[[s]]$is_objs
+  max_dev_mat[s,] = sim_rets[[s]]$max_dev
+  min_dev_mat[s,] = sim_rets[[s]]$min_dev
+  n_cells_mat[s,] = sim_rets[[s]]$n_cells
+}
+```
+
+```{r}
+print("Fixed_depth (partition_i=3)")
+print(paste("is_obj mean:", paste(fixed_names, collapse=", ")))
+print(colMeans(is_obj_mat))
+print(paste("max_dev mean:", paste(fixed_names, collapse=", ")))
+print(colMeans(max_dev_mat))
+print(paste("min_dev mean:", paste(fixed_names, collapse=", ")))
+print(colMeans(min_dev_mat))
+print(paste("n_cells mean (4 if diff dim splits):", paste(fixed_names, collapse=", ")))
+print(colMeans(n_cells_mat[,1:2]))
+
+print("CV Depth")
+print(paste("n_cells mean (4 is perfect):", paste(cv_names, collapse=", ")))
+print(colMeans(n_cells_mat[,3:n_methods]))
+```

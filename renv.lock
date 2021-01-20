@@ -1,6 +1,6 @@
 {
   "R": {
-    "Version": "3.5.2",
+    "Version": "3.5.3",
     "Repositories": [
       {
         "Name": "CRAN",
@@ -262,6 +262,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "3335c17fb0a900813001058f1ce35fc4"
+    },
+    "doSNOW": {
+      "Package": "doSNOW",
+      "Version": "1.0.19",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "d37ea40b304eec255022065947092af6"
     },
     "dplyr": {
       "Package": "dplyr",
@@ -715,7 +722,7 @@
       "Package": "renv",
       "Version": "0.12.0",
       "Source": "Repository",
-      "Repository": "CRAN",
+      "Repository": null,
       "Hash": "7340c71f46a0fd16506cfa804e224e44"
     },
     "reshape2": {
@@ -801,6 +808,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "308013098befe37484df72c39cf90d6e"
+    },
+    "snow": {
+      "Package": "snow",
+      "Version": "0.4-3",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "11b822ad6214111a4188d5e5fd1b144c"
     },
     "stringi": {
       "Package": "stringi",

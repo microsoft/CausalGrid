@@ -1,13 +1,27 @@
 # Defines the fit-estimate routines
 
-
+#' Minimum estimated_partition class
+#'
+#' @param partition partition
+#' @param cell_stats cell_stats
+#' @param ... 
+#'
+#' @return object of class estimated_partition
+#' @export
+estimated_partition <- function(partition, cell_stats, ...) {
+  extra_params = list(...)
+  
+  if(!"m_mode" %in% names(extra_params)) extra_params$m_mode = DS.SINGLE
+  if(!"M" %in% names(extra_params)) extra_params$M = 1
+  
+  return(structure(c(list(partition=partition, cell_stats=cell_stats), extra_params), 
+                   class=c("estimated_partition")))
+}
 
 # Inherited params: bump_ratio, max_splits, max_cells, bucket_min_n, bucket_min_d_var, breaks_per_dim, verbosity, partition_i
 #           y, X, d, min_size
 # Params expanded here: bump_samples, pr_cl, cv_folds
 # Hidden params:
-# - @param lambda.1se Use the 1se rule to pick the best lambda
-# - @param valid_fn Function to quickly check if partition could be valid. User can override.
 # - @param honest Whether to use the emse_hat or mse_hat. Use emse for outcome mean. For treatment effect, 
 #               use if want predictive accuracy, but if only want to identify true dimensions of heterogeneity 
 #               then don't use.
@@ -41,7 +55,7 @@
 #'
 #' @return An object with class \code{"estimated_partition"}.
 #'         \item{partition}{\code{\link{grid_partition}} obj defining cuts}
-#'         \item{cell_stats}{Cell stats from \code{\link{est_cell_stats}} on the est sample}
+#'         \item{cell_stats}{Cell stats from \code{\link{est_cell_stats}$stats} on the est sample}
 #'         \item{importance_weights}{Importance weights for each feature}
 #'         \item{interaction_weights}{Interaction weights for each pair of features}
 #'         \item{lambda}{lambda used}
@@ -57,39 +71,33 @@
 #'         
 #' @export
 fit_estimate_partition <- function(y, X, d=NULL, tr_split = 0.5, max_splits=Inf, max_cells=Inf, min_size=3, 
-                                   cv_folds=4, potential_lambdas=NULL, partition_i=NA,
+                                   cv_folds=5, potential_lambdas=NULL, partition_i=NA,
                                    verbosity=0, breaks_per_dim=NULL, 
                                    bucket_min_n=NA, bucket_min_d_var=FALSE,
                                    ctrl_method="", pr_cl=NULL, alpha=0.05, bump_samples=0, bump_ratio=1,
                                    importance_type="", ...) {
   extra_params = list(...)
-  valid_fn = NULL
-  lambda.1se=FALSE
   honest=FALSE
-  nsplits_k_warn_limit=200
   if(length(extra_params)>0) {
-    if("valid_fn" %in% names(extra_params)) valid_fn = extra_params[['valid_fn']]
-    if("lambda.1se" %in% names(extra_params)) lambda.1se = extra_params[['lambda.1se']]
     if("honest" %in% names(extra_params)) honest = extra_params[['honest']]
-    if("nsplits_k_warn_limit" %in% names(extra_params)) nsplits_k_warn_limit = extra_params[['nsplits_k_warn_limit']]
-    #assert_that(all(names(extra_params) %in% c("valid_fn", "lambda.1se", "honest", "nsplits_k_warn_limit")))
+    #don't check all extra names here as others are passed to another public function that takes hidden arguments
   }
-  list[M, m_mode, N, K] = get_sample_type(y, X, d, checks=TRUE)
+  assert_that(!honest, msg="Honest eval metric not currently implimented.")
+  honest=FALSE
+  list[M, m_mode, N_tr, K] = get_sample_type(y, X, d, checks=TRUE)
   if(is_sep_sample(X) && length(tr_split)>1) {
-    assert_that(is.list(tr_split) && length(tr_split)==M)
+    assert_that(is.list(tr_split) && length(tr_split)==M, msg="When separate sample & length(tr_split)>1, need is.list(tr_split) && length(tr_split)==M")
   }
   X = ensure_good_X(X)
   X = update_names_m(X)
   X_range = get_X_range(X)
-  if(length(breaks_per_dim)==1) breaks_per_dim = get_quantile_breaks(X, X_range, g=breaks_per_dim)
+  if(!is.list(breaks_per_dim)) {
+    breaks_per_dim = get_quantile_breaks(X, X_range, g=breaks_per_dim)
+  }
   
   dim_cat = which(get_dim_cat_m(X))
   
-  #Split the sample
-  if(length(tr_split)==1)
-    index_tr = gen_split_m(N, tr_split, m_mode==1)
-  else 
-    index_tr = tr_split
+  index_tr = expand_tr_split_info(tr_split, N_tr, m_mode)
   
   list[y_tr, y_es, X_tr, X_es, d_tr, d_es, N_est] = split_sample_m(y, X, d, index_tr)
   
@@ -100,12 +108,12 @@ fit_estimate_partition <- function(y, X, d=NULL, tr_split = 0.5, max_splits=Inf,
       est_plan = gen_simple_est_plan(has_d=!is.null(d))
     } 
     else {
-      assert_that(ctrl_method %in% c("all", "LassoCV", "RF"), !is.null(d))
+      assert_that(ctrl_method %in% c("all", "LassoCV", "RF"), !is.null(d), msg="String ctrl_method sepecified but not undestood or d is null.")
       est_plan = if(ctrl_method=="RF") grid_rf() else lm_est(lasso = ctrl_method=="LassoCV")
     }
   }
   else {
-    assert_that(inherits(ctrl_method, "estimator_plan"))
+    assert_that(inherits(ctrl_method, "estimator_plan"), msg="Non-string ctrl_method specified that doesn't inherit from estimator_plan")
     est_plan = ctrl_method
   } 
   if(is_sep_estimators(m_mode)) {
@@ -116,31 +124,31 @@ fit_estimate_partition <- function(y, X, d=NULL, tr_split = 0.5, max_splits=Inf,
   
   X_range = get_X_range(X)
   t0 = Sys.time()
-  main_ret = fit_estimate_partition_int(X=X, y=y, d=d, X_tr=X_tr, y_tr=y_tr, d_tr=d_tr, y_es=y_es, X_es=X_es, d_es=d_es, 
+  main_ret = do.call(fit_estimate_partition_int, c(list(X=X, y=y, d=d, X_tr=X_tr, y_tr=y_tr, d_tr=d_tr, y_es=y_es, X_es=X_es, d_es=d_es, 
                                         X_range=X_range, max_splits=max_splits, max_cells=max_cells, min_size=min_size, 
-                                        cv_folds=cv_folds, potential_lambdas=potential_lambdas, lambda.1se=lambda.1se, 
+                                        cv_folds=cv_folds, potential_lambdas=potential_lambdas, 
                                         partition_i=partition_i, verbosity=verbosity, breaks_per_dim=breaks_per_dim, 
                                         bucket_min_n=bucket_min_n, bucket_min_d_var=bucket_min_d_var, honest=honest, 
                                         pr_cl=pr_cl, alpha=alpha, bump_samples=bump_samples, bump_ratio=bump_ratio, M=M, m_mode=m_mode, 
-                                        dim_cat=dim_cat, est_plan=est_plan, N_est=N_est, valid_fn=valid_fn, nsplits_k_warn_limit=nsplits_k_warn_limit)
+                                        dim_cat=dim_cat, est_plan=est_plan, N_est=N_est), extra_params))
   list[partition, is_obj_val_seq, complexity_seq, partition_i, partition_seq, split_seq, lambda, cv_foldid, cell_stats, full_stat_df, est_plan] = main_ret
   
   importance_weights <- interaction_weights <- NULL
   if(importance_type=="interaction") {
-    import_ret = get_feature_interactions(X=X, y=y, d=d, X_tr=X_tr, y_tr=y_tr, d_tr=d_tr, y_es=y_es, X_es=X_es, d_es=d_es, X_range=X_range,
+    import_ret = do.call(get_feature_interactions, c(list(X=X, y=y, d=d, X_tr=X_tr, y_tr=y_tr, d_tr=d_tr, y_es=y_es, X_es=X_es, d_es=d_es, X_range=X_range,
                                           breaks_per_dim=breaks_per_dim, partition=partition, est_plan=est_plan, verbosity=verbosity, pr_cl=pr_cl, 
-                                          max_splits=max_splits, max_cells=max_cells, min_size=min_size, cv_folds=cv_folds, potential_lambdas=potential_lambdas, lambda.1se=lambda.1se, partition_i=partition_i, 
+                                          max_splits=max_splits, max_cells=max_cells, min_size=min_size, cv_folds=cv_folds, potential_lambdas=potential_lambdas, partition_i=partition_i, 
                                           bucket_min_n=bucket_min_n, bucket_min_d_var=bucket_min_d_var, honest=honest, alpha=alpha, bump_samples=bump_samples, 
-                                          bump_ratio=bump_ratio, M=M, m_mode=m_mode, dim_cat=dim_cat, N_est=N_est)
+                                          bump_ratio=bump_ratio, M=M, m_mode=m_mode, dim_cat=dim_cat, N_est=N_est), extra_params))
     importance_weights = import_ret$delta_k
     interaction_weights = import_ret$delta_k12
   }
   else if(importance_type %in% c("single", "fast")) {
-    importance_weights = get_importance_weights(X=X, y=y, d=d, X_tr=X_tr, y_tr=y_tr, d_tr=d_tr, y_es=y_es, X_es=X_es, d_es=d_es, X_range=X_range,
+    importance_weights = do.call(get_importance_weights, c(list(X=X, y=y, d=d, X_tr=X_tr, y_tr=y_tr, d_tr=d_tr, y_es=y_es, X_es=X_es, d_es=d_es, X_range=X_range,
                                                 breaks_per_dim=breaks_per_dim, partition=partition, est_plan=est_plan, type=importance_type, verbosity=verbosity, pr_cl=pr_cl, 
-                                                max_splits=max_splits, max_cells=max_cells, min_size=min_size, cv_folds=cv_folds, potential_lambdas=potential_lambdas, lambda.1se=lambda.1se, partition_i=partition_i, 
+                                                max_splits=max_splits, max_cells=max_cells, min_size=min_size, cv_folds=cv_folds, potential_lambdas=potential_lambdas, partition_i=partition_i, 
                                                 bucket_min_n=bucket_min_n, bucket_min_d_var=bucket_min_d_var, honest=honest, alpha=alpha, bump_samples=bump_samples, 
-                                                bump_ratio=bump_ratio, M=M, m_mode=m_mode, dim_cat=dim_cat, N_est=N_est)
+                                                bump_ratio=bump_ratio, M=M, m_mode=m_mode, dim_cat=dim_cat, N_est=N_est), extra_params))
   }
   
   tn = Sys.time()
@@ -191,6 +199,7 @@ num_cells.estimated_partition <- function(obj) {
 #' Change the complexity of a fit_estimate_partition
 #' 
 #' Change the complexity level of the partition and re-estimate cell statistics. 
+#' If you have a minimal estimated_partition then you need to pass in the other params.
 #' 
 #' Note: doesn't update the importance weights
 #' 
@@ -202,15 +211,17 @@ num_cells.estimated_partition <- function(obj) {
 #'
 #' @return updated estimated_partition
 #' @export 
-change_complexity <- function(fit, y, X, d=NULL, partition_i) {
+change_complexity <- function(fit, y, X, d=NULL, partition_i, index_tr = fit$index_tr,
+                              split_seq = fit$split_seq, est_plan=fit$est_plan) {
   #TODO: Refactor checks from fit_estimation_partition and put them here
   X = ensure_good_X(X)
   X = update_names_m(X)
-  list[y_tr, y_es, X_tr, X_es, d_tr, d_es, N_est] = split_sample_m(y, X, d, fit$index_tr)
+  list[y_tr, y_es, X_tr, X_es, d_tr, d_es, N_est] = split_sample_m(y, X, d, index_tr)
   
-  fit$partition = partition_from_split_seq(fit$split_seq, fit$partition$X_range, 
+  fit$partition = partition_from_split_seq(split_seq, fit$partition$X_range, 
                                            varnames=fit$partition$varnames, max_include=partition_i-1)
-  fit$cell_stats = est_cell_stats(y_es, X_es, d_es, fit$partition, est_plan=fit$est_plan)
+  list[cell_factor, stats] = est_cell_stats(y_es, X_es, d_es, fit$partition, est_plan=est_plan)
+  fit$cell_stats = stats
   
   return(fit)
 }
@@ -231,7 +242,7 @@ change_complexity <- function(fit, y, X, d=NULL, partition_i) {
 #' @export 
 get_desc_df.estimated_partition <- function(obj, do_str=TRUE, drop_unsplit=TRUE, digits=NULL, import_order=FALSE) {
   M = obj$M
-  stats = obj$cell_stats$stats[c(F, rep(T,M), rep(T,M), rep(F,M),rep(F,M), rep(F,M), rep(F,M), rep(T,M), rep(F,M), rep(F,M))]
+  stats = obj$cell_stats[c(F, rep(T,M), rep(T,M), rep(F,M),rep(F,M), rep(F,M), rep(F,M), rep(T,M), rep(F,M), rep(F,M))]
   part_df = get_desc_df.grid_partition(obj$partition, do_str=do_str, drop_unsplit=drop_unsplit, digits=digits)
   
   imp_weights = obj$importance_weights
@@ -239,7 +250,7 @@ get_desc_df.estimated_partition <- function(obj, do_str=TRUE, drop_unsplit=TRUE,
     imp_weights = imp_weights[obj$partition$nsplits_by_dim>0]
   }
   if(import_order) {
-    part_df = part_df[, order(-1* imp_weights)]
+    part_df = part_df[, order(imp_weights, decreasing=TRUE)]
     part_df = part_df[do.call("order",part_df),] #re-sorts so that rightward changes most frequently
   } 
   
@@ -267,7 +278,6 @@ print.estimated_partition <- function(x, do_str=TRUE, drop_unsplit=TRUE, digits=
 #}
 
 #libs required and suggested. Use if sourcing directly. 
-#If you don't want to use the Rcpp versio of const_vect (`const_vect = const_vectr`) then you can skip Rcpp
 #lapply(lib_list, require, character.only = TRUE)
 #CausalGrid_libs <- function(required=TRUE, suggested=TRUE, load_Rcpp=FALSE) {
 #  lib_list = c()
@@ -293,21 +303,21 @@ print.estimated_partition <- function(x, do_str=TRUE, drop_unsplit=TRUE, digits=
 #' @export
 test_any_sign_effect <- function(obj, check_negative=T, method="fdr", alpha=0.05, n_sim=500) {
   #TODO: could also
-  assert_that(method %in% c("fdr", "sim_mom_ineq"))
+  assert_that(method %in% c("fdr", "sim_mom_ineq"), msg="Unknown method (must be one of fdr or sim_mom_ineq.")
   if(method=="fdr") {
-    assert_that(obj$has_d, alpha>0, alpha<1)
-    dofs = obj$cell_stats$stats[["N_est"]] - obj$est_plan$dof
-    pval_right= pt(obj$cell_stats$stats$tstats, df=dofs, lower.tail=FALSE) #right-tailed. Checking for just a positive effect (H_a is "greater")
-    pval_left = pt(obj$cell_stats$stats$tstats, df=dofs, lower.tail=TRUE) #left-tailed. Checking for just a negative effect (H_a is "less")
+    assert_that(obj$has_d, alpha>0, alpha<1, msg="Testing significance requires d and alpha in (0,1)")
+    dofs = obj$cell_stats[["N_est"]] - obj$est_plan$dof
+    pval_right= pt(obj$cell_stats$tstats, df=dofs, lower.tail=FALSE) #right-tailed. Checking for just a positive effect (H_a is "greater")
+    pval_left = pt(obj$cell_stats$tstats, df=dofs, lower.tail=TRUE) #left-tailed. Checking for just a negative effect (H_a is "less")
     pval1s = if(check_negative) pval_left else pval_right
     pval1s_fdr = p.adjust(pval1s, "BH")
     are_any = sum(pval1s_fdr<alpha) > 0
     return(list(are_any=are_any, pval1s=pval1s, pval1s_fdr=pval1s_fdr))
   }
   else {
-    N_cell = nrow(obj$cell_stats$stats)
-    te_se = sqrt(obj$cell_stats$stats[["var_ests"]])
-    tstat_ext = if(check_negative) min(obj$cell_stats$stats[["tstats"]]) else max(obj$cell_stats$stats[["tstats"]])
+    N_cell = nrow(obj$cell_stats)
+    te_se = sqrt(obj$cell_stats[["var_ests"]])
+    tstat_ext = if(check_negative) min(obj$cell_stats[["tstats"]]) else max(obj$cell_stats[["tstats"]])
     sim_tstat_exts = rep(NA, n_sim)
     for(s in 1:n_sim) {
       sim_te = rnorm(N_cell, mean=0, sd=te_se)
@@ -346,7 +356,7 @@ test_any_sign_effect <- function(obj, check_negative=T, method="fdr", alpha=0.05
 #' @export
 est_cell_stats <- function(y, X, d=NULL, partition=NULL, cell_factor=NULL, estimator_var=NULL, 
                            est_plan=NULL, alpha=0.05) {
-  list[M, m_mode, N, K] = get_sample_type(y, X, d, checks=TRUE)
+  list[M, m_mode, N_tr, K] = get_sample_type(y, X, d, checks=TRUE)
   X = ensure_good_X(X)
   
   if(is.null(est_plan)) {
@@ -398,14 +408,14 @@ est_cell_stats <- function(y, X, d=NULL, partition=NULL, cell_factor=NULL, estim
 #' @return Stats df
 #' @export
 est_full_stats <- function(y, X, d, est_plan, y_es=NULL, X_es=NULL, d_es=NULL, index_tr=NULL, alpha=0.05) {
-  list[M, m_mode, N, K] = get_sample_type(y, X, d, checks=TRUE)
+  list[M, m_mode, N_tr, K] = get_sample_type(y, X, d, checks=TRUE)
   X = ensure_good_X(X)
   
   if(is.null(y_es)) {
     list[y_tr, y_es, X_tr, X_es, d_tr, d_es, N_est] = split_sample_m(y, X, d, index_tr)
   }
   N_es = nrow_m(X_es, M)
-  full_Ns = rbind(N, N_es)
+  full_Ns = rbind(N_tr, N_es)
   colnames(full_Ns) = if(M==1) "N_est" else paste("N_est", 1:M, sep="")
   list[full_param_ests_all, full_var_ests_all] = Param_Est_m(est_plan, y, d, X, sample="est", ret_var=TRUE, m_mode=m_mode)
   list[full_param_ests_es, full_var_ests_es] = Param_Est_m(est_plan, y_es, d_es, X_es, sample="est", ret_var=TRUE, m_mode=m_mode)
@@ -427,27 +437,32 @@ est_full_stats <- function(y, X, d, est_plan, y_es=NULL, X_es=NULL, d_es=NULL, i
 #'
 #' @param obj estimated_partition object
 #' @param new_X new X
+#' @param new_d new d
 #'
 #' @return predicted treatment effect
 #' @export
-predict_te.estimated_partition <- function(obj, new_X) {
+predict.estimated_partition <- function(obj, new_X, new_d=NULL, type="effect") {
   #TODO: for mode 1 &2 maybe return a matrix rather than list
+  #type="effect"
+  #
   new_X = ensure_good_X(new_X)
   new_X_range = get_X_range(new_X)
   
   cell_factor = get_factor_from_partition(obj$partition, new_X, new_X_range)
-  if(obj$M==1) {
+  M = obj$M
+  
+  if(M==1) {
     N=nrow(new_X)
     cell_factor_df = data.frame(id=1:N, cell_i = as.integer(cell_factor))
-    m_df = merge(cell_factor_df, obj$cell_stats$stats)
+    m_df = merge(cell_factor_df, obj$cell_stats)
     m_df = m_df[order(m_df[["id"]]), ]
     return(m_df[["param_ests"]])
   }
-  N = nrow_m(X, M)
+  N = nrow_m(new_X, M)
   rets = list()
   for(m in 1:M) {
     cell_factor_df = data.frame(id=1:N[m], cell_i = as.integer(cell_factor[[m]]))
-    m_df = merge(cell_factor_df, obj$cell_stats$stats)
+    m_df = merge(cell_factor_df, obj$cell_stats)
     m_df = m_df[order(m_df[["id"]]), ]
     rets[[m]] = m_df[["param_ests"]]
   }
@@ -460,112 +475,148 @@ predict_te.estimated_partition <- function(obj, new_X) {
 #' 
 #' Evaluate the MSE_hat objective function over the cells for the sample
 #'
+#' @param y_tr y_tr
+#' @param X_tr X_tr
+#' @param d_tr d_tr
+#' @param y_te y_te
+#' @param X_te X_te
+#' @param d_te d_te
 #' @param N_est Size of estimation sample. Unused for this objective function.
 #' @param partition Grid partition. Pass in this or \code{cell_factor}.
-#' @param cell_factor Factor for cells for each observation. Pass in this or \code{partition}. 
+#' @param cell_factor_tr Factor for cells for each observation. Pass in this or \code{partition}. 
 #' @param est_plan Estimation plan. If this and  \code{estimator} are null, then one is created as  \code{gen_simple_est_plan(has_d=!is.null(d))}
 #' @param estimator If not passing in \code{est_plan}, can pass in this estimation routine and one is created using \code{\link{simple_est}}.
 #' @param debug T/F whether we are in debug mode (and print out more info)
 #' @param warn_on_error  T/F for whether to display a warning when estimation fails (NA values returned)
 #' @param sample Passed to \code{\link{est_params}}
-#' @inheritParams fit_partition
-#'
+
 #' @return \code{c(val, N_cell_empty, N_cell_error)}
 #' @export
 #' @keywords internal
-eval_mse_hat <-function(y, X, d, N_est, partition=NULL, cell_factor=NULL, est_plan=NULL, estimator=NULL, debug=FALSE, 
+eval_mse_hat <-function(y_tr, X_tr, d_tr, y_te=NULL, X_te=NULL, d_te=NULL, N_est, partition=NULL, cell_factor_tr=NULL, cell_factor_te=NULL, est_plan=NULL, estimator=NULL, debug=FALSE, 
                         warn_on_error=FALSE, sample="trtr", ...) {
+  incl_te = !is.null(y_te)
   if(is.null(est_plan)) {
-    if(is.null(estimator)) est_plan = gen_simple_est_plan(has_d=!is.null(d))
+    if(is.null(estimator)) est_plan = gen_simple_est_plan(has_d=!is.null(d_tr))
     else est_plan = simple_est(estimator, estimator)
   }
-  if(is.null(cell_factor)) {
-    cell_factor = get_factor_from_partition(partition, X)
+  
+  if(is.null(cell_factor_tr)) {
+    cell_factor_tr = get_factor_from_partition(partition, X_tr)
+    if(incl_te) cell_factor_te = get_factor_from_partition(partition, X_te)
   }
-  list[M, m_mode, N, K] = get_sample_type(y, X, d, checks=FALSE)
-  list[lvls, n_cells] = lcl_levels(cell_factor)
+  list[M, m_mode, N_tr, K] = get_sample_type(y_tr, X_tr, d_tr, checks=FALSE)
+  if(incl_te) list[M, m_mode, N_te, K] = get_sample_type(y_te, X_te, d_te, checks=FALSE)
+  list[lvls, n_cells] = lcl_levels(cell_factor_tr)
   cell_contribs = rep(0, n_cells)
   N_eff = 0
   N_cell_empty = 0
   N_cell_error = 0
   for(cell_i in 1:n_cells) {
-    list[y_cell, d_cell, X_cell, N_l] <- get_cell(y, X, d, cell_factor, cell_i, lvls)
-    if(any(N_l==0)) {
+    list[y_tr_cell, d_tr_cell, X_tr_cell, N_tr_l] <- get_cell(y_tr, X_tr, d_tr, cell_factor_tr, cell_i, lvls)
+    if(incl_te) list[y_te_cell, d_te_cell, X_te_cell, N_te_l] <- get_cell(y_te, X_te, d_te, cell_factor_te, cell_i, lvls)
+    if(any(N_tr_l==0) || (incl_te && any(N_te_l==0))) {
       N_cell_empty = N_cell_empty+1
       next
     }
-    list[param_est] = Param_Est_m(est_plan, y_cell, d_cell, X_cell, sample=sample, ret_var=FALSE, m_mode)
-    if(!all(is.finite(param_est))) {
+    list[param_est_tr] = Param_Est_m(est_plan, y_tr_cell, d_tr_cell, X_tr_cell, sample=sample, ret_var=FALSE, m_mode)
+    if(incl_te) list[param_est_te] = Param_Est_m(est_plan, y_te_cell, d_te_cell, X_te_cell, sample=sample, ret_var=FALSE, m_mode)
+    if(!all(is.finite(param_est_tr)) || (incl_te && !all(is.finite(param_est_te)))) {
       N_cell_error = N_cell_error+1
-      msg = paste("Failed estimation: (N_l=", N_l, ")\n") #if printing var(d_cell), remember it could be a list
-      if(warn_on_error) warning(msg)
+      msg = paste("Failed estimation: (N_tr_l=", N_tr_l, ")") #if printing var(d_cell), remember it could be a list
+      if(incl_te) msg = paste(msg, "(N_te_l", N_te_l, ")")
+      if(warn_on_error) warning(paste(msg,"\n"))
       next
     }
-    t1_mse = sum(N_l*param_est^2)
-    N_eff = N_eff + sum(N_l)
+    if(incl_te) t1_mse = sum(N_te_l*(2*param_est_tr*param_est_te - param_est_tr^2))
+    else t1_mse = sum(N_tr_l*param_est_tr^2)
+    N_eff = N_eff + ifelse(incl_te, sum(N_te_l), sum(N_tr_l))
     cell_contribs[cell_i] = t1_mse
-    if(debug) print(paste("cell_i=", cell_i, "; N_l=", N_l, "; param_est=", param_est))
+    if(debug) { 
+      if(incl_te) print(paste("cell_i=", cell_i, "; N_tr_l=", N_tr_l, "; param_est_tr=", param_est_tr, "; N_te_l=", N_te_l, "; param_est_te=", param_est_te))
+      else print(paste("cell_i=", cell_i, "; N_tr_l=", N_tr_l, "; param_est_tr=", param_est_tr))
+    }
   }
   val = -1/N_eff*sum(cell_contribs) # Use N_eff to remove from average given errors
   if(debug) print(paste("cell sums", val))
   return(c(val, N_cell_empty, N_cell_error))
 }
 
-# If empty and err cells will be removed from the calculation, but counts of these returned
-# estimator_var: takes sample for cell and returns coefficient estimate and estimated variance of estimate
-eval_emse_hat<-function(y, X , d, N_est, partition=NULL, cell_factor=NULL, estimator_var=NULL, debug=FALSE, 
-                    warn_on_error=FALSE, alpha=NULL, est_plan=NULL, sample="trtr") {
-  if(is.null(est_plan)) {
-    if(is.null(estimator_var)) est_plan = gen_simple_est_plan(has_d=!is.null(d))
-    else est_plan = simple_est(estimator_var, estimator_var)
+#Version of the above if we've already estimated the table.
+# Doesn't do any error checking
+eval_mse_hat_tbl <- function(train_tbl, te_tbl=NULL, incl_base_te=TRUE) {
+  if(is.null(te_tbl)) {
+    val = sum(train_tbl['N_est']*train_tbl['param_ests']^2)
+    val = -1/(sum(train_tbl['N_est']))*val
   }
-  if(is.null(cell_factor)) {
-    cell_factor = get_factor_from_partition(partition, X)
-  }
-  if(!is.null(alpha)) {
-    stopifnot(alpha>=0 & alpha<=1)
-  }
-  list[M, m_mode, N, K] = get_sample_type(y, X, d, checks=FALSE)
-  list[lvls, n_cells] = lcl_levels(cell_factor)
-  cell_contribs1 = rep(0, n_cells)
-  cell_contribs2 = rep(0, n_cells)
-  N_eff = 0
-  N_cell_empty = 0
-  N_cell_err = 0
-  for(cell_i in 1:n_cells) {
-    list[y_cell, d_cell, X_cell, N_l] <- get_cell(y, X, d, cell_factor, cell_i, lvls)
-    if(any(N_l==0)) {
-      N_cell_empty = N_cell_empty+1
-      next
+  else {
+    if(incl_base_te) {
+      val = sum(te_tbl['N_est']*(te_tbl['param_ests'] - train_tbl['param_ests'])^2)
+      }
+    else {
+      val = sum(te_tbl['N_est']*(-2*train_tbl['param_ests']*te_tbl['param_ests'] + train_tbl['param_ests']^2))
     }
-    
-    list[param_est, var_est] = Param_Est_m(est_plan, y_cell, d_cell, X_cell, sample=sample, ret_var=TRUE, m_mode) 
-    if(!all(is.finite(param_est)) || !all(is.finite(var_est))) {
-      N_cell_err = N_cell_err+1
-      msg = paste("Failed estimation: (N_l=", N_l, ", param_est=", param_est, ", var_est=", var_est,
-                  ifelse(!is.null(d), paste(", var_d=", var(d_cell)) , ""),
-                  ")\n")
-      if(warn_on_error) warning(msg)
-      next
-    }
-    t1_mse = sum(N_l*param_est^2)
-    t2_var = sum(N_l*var_est)
-    N_eff = N_eff + sum(N_l)
-    cell_contribs1[cell_i] = t1_mse
-    cell_contribs2[cell_i] = t2_var
-    if(debug) print(paste("N=", N, "; cell_i=", cell_i, "; N_l=", N_l, "; param_est=", param_est, 
-                          "; var_est=", var_est))
+    val = 1/(sum(te_tbl['N_est']))*val
   }
-  t1_mse = -1/N_eff*sum(cell_contribs1)
-  t2_var = (1/N_eff + 1/N_est)*sum(cell_contribs2) 
-  val = if(is.null(alpha)) t1_mse + t2_var else alpha*t1_mse + (1-alpha)*t2_var
-  if(debug) print(paste("cell sums", val))
-  if(!is.finite(val)) stop("Non-finite val")
-  return(c(val, N_cell_empty, N_cell_err))
+  return(val)
 }
 
+#TODO: Adapt to allow for separate sample evaluation (used for CV). This is done for eval_mse_hat
+# If empty and err cells will be removed from the calculation, but counts of these returned
+# estimator_var: takes sample for cell and returns coefficient estimate and estimated variance of estimate
+# eval_emse_hat<-function(y, X , d, N_est, partition=NULL, cell_factor=NULL, estimator_var=NULL, debug=FALSE, 
+#                     warn_on_error=FALSE, alpha=NULL, est_plan=NULL, sample="trtr") {
+#   if(is.null(est_plan)) {
+#     if(is.null(estimator_var)) est_plan = gen_simple_est_plan(has_d=!is.null(d))
+#     else est_plan = simple_est(estimator_var, estimator_var)
+#   }
+#   if(is.null(cell_factor)) {
+#     cell_factor = get_factor_from_partition(partition, X)
+#   }
+#   if(!is.null(alpha)) {
+#     stopifnot(alpha>=0 & alpha<=1)
+#   }
+#   list[M, m_mode, N_tr, K] = get_sample_type(y, X, d, checks=FALSE)
+#   list[lvls, n_cells] = lcl_levels(cell_factor)
+#   cell_contribs1 = rep(0, n_cells)
+#   cell_contribs2 = rep(0, n_cells)
+#   N_eff = 0
+#   N_cell_empty = 0
+#   N_cell_err = 0
+#   for(cell_i in 1:n_cells) {
+#     list[y_cell, d_cell, X_cell, N_l] <- get_cell(y, X, d, cell_factor, cell_i, lvls)
+#     if(any(N_l==0)) {
+#       N_cell_empty = N_cell_empty+1
+#       next
+#     }
+#     
+#     list[param_est, var_est] = Param_Est_m(est_plan, y_cell, d_cell, X_cell, sample=sample, ret_var=TRUE, m_mode) 
+#     if(!all(is.finite(param_est)) || !all(is.finite(var_est))) {
+#       N_cell_err = N_cell_err+1
+#       msg = paste("Failed estimation: (N_l=", N_l, ", param_est=", param_est, ", var_est=", var_est,
+#                   ifelse(!is.null(d), paste(", var_d=", var(d_cell)) , ""),
+#                   ")\n")
+#       if(warn_on_error) warning(msg)
+#       next
+#     }
+#     t1_mse = sum(N_l*param_est^2)
+#     t2_var = sum(N_l*var_est)
+#     N_eff = N_eff + sum(N_l)
+#     cell_contribs1[cell_i] = t1_mse
+#     cell_contribs2[cell_i] = t2_var
+#     if(debug) print(paste("N=", N_tr, "; cell_i=", cell_i, "; N_l=", N_l, "; param_est=", param_est, 
+#                           "; var_est=", var_est))
+#   }
+#   t1_mse = -1/N_eff*sum(cell_contribs1)
+#   t2_var = (1/N_eff + 1/N_est)*sum(cell_contribs2) 
+#   val = if(is.null(alpha)) t1_mse + t2_var else alpha*t1_mse + (1-alpha)*t2_var
+#   if(debug) print(paste("cell sums", val))
+#   if(!is.finite(val)) stop("Non-finite val")
+#   return(c(val, N_cell_empty, N_cell_err))
+# }
+
 get_cell <- function(y, X, d, cell_factor, cell_i, lvls) {
-  list[M, m_mode, N, K] = get_sample_type(y, X, d)
+  list[M, m_mode, N_tr, K] = get_sample_type(y, X, d)
   if(is_sep_sample(X)) {
     y_cell = d_cell = X_cell = list()
     N_l = rep(0, M)
@@ -585,6 +636,13 @@ get_cell <- function(y, X, d, cell_factor, cell_i, lvls) {
     X_cell = X[cell_ind, , drop=FALSE]
   }
   return(list(y_cell, d_cell, X_cell, N_l))
+}
+
+#Split the sample
+expand_tr_split_info<-function(tr_split, N_tr, m_mode) {
+  if(length(tr_split)==1)
+    return(gen_split_m(N_tr, tr_split, m_mode==1))
+  return(tr_split)
 }
 
 lcl_levels <- function(cell_factor) {
@@ -632,7 +690,7 @@ get_importance_weights_full_k <- function(k_i, to_compute, X_d, y, d, X_tr, y_tr
   X_tr_k = drop_col_k_m(X_tr, k)
   X_es_k = drop_col_k_m(X_es, k)
   main_ret = fit_estimate_partition_int(X_k, y, d, X_tr_k, y_tr, d_tr, y_es, X_es_k, d_es, X_range[-k], breaks_per_dim=breaks_per_dim[-k], verbosity=verbosity, nsplits_k_warn_limit=NA, ...)
-  nk_val = eval_mse_hat(y_es, X_es_k, d=d_es, partition=main_ret$partition, est_plan=main_ret$est_plan, sample="est")[1] #use oos version instead of main_ret$is_obj_val_seq[partition_i]
+  nk_val = eval_mse_hat(y_es, X_es_k, d_es, partition=main_ret$partition, est_plan=main_ret$est_plan, sample="est")[1] #use oos version instead of main_ret$is_obj_val_seq[partition_i]
   return(list(nk_val, main_ret$partition$nsplits_by_dim))
 }
 
@@ -643,10 +701,10 @@ get_importance_weights <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es, 
   if(verbosity>0) cat("Feature weights: Started.\n")
   K = length(X_range)
   if(sum(partition$nsplits_by_dim)==0) return(rep(0, K))
-  full_val = eval_mse_hat(y_es, X_es, d=d_es, partition = partition, est_plan=est_plan, sample="est")[1]
+  full_val = eval_mse_hat(y_es, X_es, d_es, partition = partition, est_plan=est_plan, sample="est")[1]
   
   if(K==1) {
-    null_val = eval_mse_hat(y_es, X_es, d=d_es, partition = grid_partition(partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
+    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
     if(verbosity>0) cat("Feature weights: Finished.\n")
     return(null_val - full_val)
   }
@@ -657,7 +715,7 @@ get_importance_weights <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es, 
     for(k in 1:K) {
       if(partition$nsplits_by_dim[k]>0) {
         cell_factor_nk = gen_holdout_interaction_m(factors_by_dim, k, is_sep_sample(X_tr))
-        new_vals[k] = eval_mse_hat(y_es, X_es, d=d_es, cell_factor = cell_factor_nk, est_plan=est_plan, sample="est")[1]
+        new_vals[k] = eval_mse_hat(y_es, X_es, d_es, cell_factor_tr = cell_factor_nk, est_plan=est_plan, sample="est")[1]
       }
     }
     if(verbosity>0) cat("Feature weights: Finished.\n")
@@ -687,7 +745,7 @@ get_feature_interactions_k12 <- function(ks_i, to_compute, X_d, y, d, X_tr, y_tr
   X_tr_k = drop_col_k_m(X_tr, ks)
   X_es_k = drop_col_k_m(X_es, ks)
   main_ret = fit_estimate_partition_int(X_k, y, d, X_tr_k, y_tr, d_tr, y_es, X_es_k, d_es, X_range[-ks], breaks_per_dim=breaks_per_dim[-ks], verbosity=verbosity, nsplits_k_warn_limit=NA, ...)
-  nk_val = eval_mse_hat(y_es, X_es_k, d=d_es, partition=main_ret$partition, est_plan=main_ret$est_plan, sample="est")[1] #use oos version instead of main_ret$is_obj_val_seq[partition_i]
+  nk_val = eval_mse_hat(y_es, X_es_k, d_es, partition=main_ret$partition, est_plan=main_ret$est_plan, sample="est")[1] #use oos version instead of main_ret$is_obj_val_seq[partition_i]
   return(nk_val)
   
 }
@@ -696,15 +754,16 @@ get_feature_interactions <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es
   
   if(verbosity>0) cat("Feature weights: Started.\n")
   K = length(X_range)
-  delta_k12 = matrix(as.integer(diag(rep(NA, K))), ncol=K) #dummy for K<3 cases
+  dnames = list(colnames(X), colnames(X))
+  delta_k12 = matrix(as.integer(diag(rep(NA, K))), ncol=K, dimnames=dnames) #dummy for K<3 cases
   if(sum(partition$nsplits_by_dim)==0){ 
     if(verbosity>0) cat("Feature weights: Finished.\nFeature interaction weights: Started.\nFeature interaction interactions: Finished.\n")
     return(list(delta_k=rep(0, K), delta_k12=delta_k12))
   }
-  full_val = eval_mse_hat(y_es, X_es, d=d_es, partition = partition, est_plan=est_plan, sample="est")[1]
+  full_val = eval_mse_hat(y_es, X_es, d_es, partition = partition, est_plan=est_plan, sample="est")[1]
   
   if(K==1) {
-    null_val = eval_mse_hat(y_es, X_es, d=d_es, partition = grid_partition(partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
+    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
     if(verbosity>0) cat("Feature weights: Finished.\nFeature interaction weights: Started.\nFeature interaction interactions: Finished.\n")
     return(list(delta_k=null_val - full_val, delta_k12=delta_k12))
   }
@@ -721,8 +780,10 @@ get_feature_interactions <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es
   }
   delta_k = new_val_k - full_val
   if(K==2) {
-    null_val = eval_mse_hat(y_es, X_es, d=d_es, partition = grid_partition(partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
+    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
     delta_k12 = matrix(null_val - full_val, ncol=2) + diag(rep(NA, K))
+    colnames(delta_k12) = colnames(X)
+    rownames(delta_k12) = colnames(X)
     if(verbosity>0) cat("Feature weights: Finished.\nFeature interaction weights: Started.\nFeature interaction interactions: Finished.\n")
     return(list(delta_k=delta_k, delta_k12=delta_k12))
   } 
@@ -763,6 +824,8 @@ get_feature_interactions <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es
     new_val_k12[k2, k1] = new_val
   }
   delta_k12 = t(t((new_val_k12 - full_val) - delta_k) - delta_k) + diag(rep(NA, K))
+  colnames(delta_k12) = colnames(X)
+  rownames(delta_k12) = colnames(X)
   if(verbosity>0) cat("Feature interaction interactions: Finished.\n")
   return(list(delta_k=delta_k, delta_k12=delta_k12))
 }
@@ -779,9 +842,7 @@ fit_and_residualize <- function(est_plan, X_tr, y_tr, d_tr, cv_folds, y_es, X_es
 fit_estimate_partition_int <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es, dim_cat, X_range, est_plan, honest, cv_folds, verbosity, M, m_mode, 
                                        alpha, ...) {
   K = length(X_range)
-  obj_fn = if(honest) eval_emse_hat
-else eval_mse_hat
-  
+  obj_fn = if(honest) eval_emse_hat else eval_mse_hat
   
   list[nfolds, folds_ret, foldids] = expand_fold_info(y_tr, cv_folds, m_mode)
   
@@ -794,7 +855,7 @@ else eval_mse_hat
   list[partition, is_obj_val_seq, complexity_seq, partition_i, partition_seq, split_seq, lambda, cv_foldid] = fit_ret
   
   if(verbosity>0) cat("Estimating cell statistics on estimation set\n")
-  cell_stats = est_cell_stats(y_es, X_es, d_es, partition, est_plan=est_plan, alpha=alpha)
+  list[cell_factor, cell_stats] = est_cell_stats(y_es, X_es, d_es, partition, est_plan=est_plan, alpha=alpha)
   
   full_stat_df = est_full_stats(y, X, d, est_plan, y_es=y_es, X_es=X_es, d_es=d_es)
   
