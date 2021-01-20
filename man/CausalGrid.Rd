@@ -5,18 +5,28 @@
 \alias{CausalGrid}
 \title{CausalGrid: A package for subgroup effects}
 \description{
-This package helps you identify and analyze subgroups within a sample. Subgroups are constructed as a grid over the features/covariates \code{X}. 
-For example, with 1 feature going from 0 to 1 it may split at values c1, c2, 
-resulting in segments [0,c1], (c1, c2], (c2,1]. A split at value c means it splits <= and >.
-The segments may be of uneven sizes. Splits along several features result in a grid by constructing the cartesian product of the feature-specific splits. Not all features will necessarily be split or split the same number of times.
+This package helps you identify and analyze subgroups within a sample.
+Subgroups are constructed as a grid over the features/covariates \code{X}.
+For example, with 1 feature going from 0 to 1 it may split at values c1, c2,
+resulting in segments [0,c1], (c1, c2], (c2,1]. A split at value c means it
+splits <= and >. The segments may be of uneven sizes. Splits along several
+features result in a grid by constructing the cartesian product of the
+feature-specific splits. Not all features will necessarily be split or split
+the same number of times.
 }
 \details{
 The main entry point is \code{\link{fit_estimate_partition}}.
 
-Randomization: This package should be able to be run with no randomness. With default/simple parameters the following places randomize but can be overridden. \itemize{
-  \item  Generating train/est splits. Can be overridden by providing \code{tr_split}
-  \item  Generating trtr/trcv splits. Can be overridden by providing \code{cv_folds}
-  \item  Bumping samples. Can be overriddgen by providing list of samples for  \code{bump_samples}
-  \item  Estimation plans: Provide ones ( \code{lm_est(lasso=TRUE,...)} and  \code{grid_rf}) use  \code{cv_folds}. User-made ones should too. 
+Randomization: This package should be able to be run with no randomness. With
+default/simple parameters the following places randomize but can be
+overridden. \itemize{
+\item  Generating train/est splits. Can be overridden by providing
+\code{tr_split}
+\item  Generating trtr/trcv splits. Can be overridden by providing
+\code{cv_folds}
+\item  Bumping samples. Can be overriddgen by providing list of samples for
+\code{bump_samples}
+\item  Estimation plans: Provide ones ( \code{lm_est(lasso=TRUE,...)} and
+\code{grid_rf}) use  \code{cv_folds}. User-made ones should too.
 }
 }

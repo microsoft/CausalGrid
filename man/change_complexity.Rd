@@ -4,7 +4,16 @@
 \alias{change_complexity}
 \title{Change the complexity of a fit_estimate_partition}
 \usage{
-change_complexity(fit, y, X, d = NULL, partition_i)
+change_complexity(
+  fit,
+  y,
+  X,
+  d = NULL,
+  partition_i,
+  index_tr = fit$index_tr,
+  split_seq = fit$split_seq,
+  est_plan = fit$est_plan
+)
 }
 \arguments{
 \item{fit}{estimated_partition}
@@ -17,12 +26,15 @@ change_complexity(fit, y, X, d = NULL, partition_i)
 should be normalized to have the same variance. With multiple core estimates see Details below.}
 
 \item{partition_i}{partition_i - 1 is the last include in split_seq included in new partition}
+
+\item{est_plan}{\link{EstimatorPlan}.}
 }
 \value{
 updated estimated_partition
 }
 \description{
-Change the complexity level of the partition and re-estimate cell statistics.
+Change the complexity level of the partition and re-estimate cell statistics. 
+If you have a minimal estimated_partition then you need to pass in the other params.
 }
 \details{
 Note: doesn't update the importance weights

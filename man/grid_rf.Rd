@@ -2,12 +2,12 @@
 % Please edit documentation in R/Estimator_plans.R
 \name{grid_rf}
 \alias{grid_rf}
-\alias{is.grid_rf}
+\alias{is_grid_rf}
 \title{Create a grid_rf object}
 \usage{
 grid_rf(num.trees = 500, num.threads = NULL, resid_est = TRUE)
 
-is.grid_rf(x)
+is_grid_rf(x)
 }
 \arguments{
 \item{num.trees}{number of trees in the random forest}
@@ -31,6 +31,6 @@ Tests wheterh object is a \code{grid_rf}.
 }
 \section{Functions}{
 \itemize{
-\item \code{is.grid_rf}: is grid_rf
+\item \code{is_grid_rf}: is grid_rf
 }}
 

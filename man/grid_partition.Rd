@@ -2,12 +2,12 @@
 % Please edit documentation in R/grid_partition.R
 \name{grid_partition}
 \alias{grid_partition}
-\alias{is.grid_partition}
+\alias{is_grid_partition}
 \title{Create a null grid_partition}
 \usage{
 grid_partition(X_range, varnames = NULL)
 
-is.grid_partition(x)
+is_grid_partition(x)
 }
 \arguments{
 \item{X_range}{Such as from \code{\link{get_X_range}}}
@@ -30,6 +30,6 @@ Test whether an object is an \code{grid_function}
 }
 \section{Functions}{
 \itemize{
-\item \code{is.grid_partition}: is grid_partition
+\item \code{is_grid_partition}: is grid_partition
 }}
 

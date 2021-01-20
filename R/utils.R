@@ -84,7 +84,7 @@ const_vectr <- function(x) {
 # Fold utils --------------------------
 
 gen_folds <- function(y, nfolds) {
-  assert_that(nfolds>1)
+  assert_that(nfolds>1, msg="Need nfolds>1")
   idxOut_new  = caret::createFolds(y, k=nfolds, list=TRUE)
   
   idx_new = list()
@@ -97,7 +97,6 @@ gen_folds <- function(y, nfolds) {
   return(list(foldids=foldids, index=idx_new, indexOut=idxOut_new))
   
 }
-
 
 factor_from_idxs <-function(N, nfolds, indexOut) {
   folds = vector("numeric", N)
@@ -129,7 +128,13 @@ foldids_to_foldlists <- function(foldids, nfolds) {
   return(list(index=index, indexOut=indexOut))
 }
 
-expand_fold_info <- function(y, cv_folds, m_mode) {
+
+DS.SINGLE = 0
+DS.MULTI_SAMPLE = 1
+DS.MULTI_D = 2
+DS.MULTI_Y = 3
+
+expand_fold_info <- function(y, cv_folds, m_mode=DS.SINGLE) {
   if(length(cv_folds)==1) {
     nfolds = cv_folds
     folds_ret = gen_folds_m(y, nfolds, m_mode)
@@ -157,11 +162,6 @@ is_sep_sample <- function(X) {
   return(is.list(X) & !is.data.frame(X))
 }
 
-DS.SINGLE = 0
-DS.MULTI_SAMPLE = 1
-DS.MULTI_D = 2
-DS.MULTI_Y = 3
-
 is_sep_estimators <- function(m_mode) {
   return(m_mode==DS.MULTI_SAMPLE || m_mode==DS.MULTI_Y)
 }
@@ -180,11 +180,11 @@ ensure_good_X <- function(X) {
     are_equal(mode(X), "numeric")
   }
   else {
-    assert_that(is.data.frame(X))
+    assert_that(is.data.frame(X), msg="X is not a matrix or data.frame")
     if (inherits(X, "tbl")) X <- as.data.frame(X) # tibble's return tibble (rather than vector) for X[,k], making is.factor(X[,k]) and others fail. Could switch to doing X[[k]] for df-like objects
     for (k in seq_len(ncol(X))) are_equal(mode(X[[k]]), "numeric")
   }
-  assert_that(ncol(X) >= 1)
+  assert_that(ncol(X) >= 1, msg="X has no columns.")
   return(X)
 }
 
@@ -198,14 +198,14 @@ get_sample_type <- function(y, X, d=NULL, checks=FALSE) {
     
     if(checks) {
       check_list_dims <- function(new_type) {
-        assert_that(is.list(new_type), length(new_type)==M)
-        for(m in 1:M) assert_that(length(new_type[[m]])==N[[m]])
+        assert_that(is.list(new_type), length(new_type)==M, msg="Separate samples, but aux param isn't list of same length")
+        for(m in 1:M) assert_that(length(new_type[[m]])==N[[m]], msg="Separate samples, but aux param's list elements aren't the right length.")
       }
       check_list_dims(y)
       if(!is.null(d)) check_list_dims(d)
       
       for(m in 1:M) {
-        assert_that(ncol(X[[m]])==K)
+        assert_that(ncol(X[[m]])==K, msg="Separate samples, but X's don't all have the same number of columns.")
       } 
     }
     
@@ -218,8 +218,8 @@ get_sample_type <- function(y, X, d=NULL, checks=FALSE) {
       m_mode= DS.MULTI_D
       M = ncol(d)
       if(checks){
-        assert_that(!inherits(d, "tbl")) #TODO: Could silently conver
-        assert_that(nrow(d)==N, length(y)==N)
+        assert_that(!inherits(d, "tbl"), msg="d not allowed to be a tibble") #TODO: Could silently conver
+        assert_that(nrow(d)==N, length(y)==N, msg="d and N don't have the right number of rows.")
       }
     }
     else if(!is.null(d) && is.matrix(y) && ncol(y)>1) {
@@ -227,15 +227,15 @@ get_sample_type <- function(y, X, d=NULL, checks=FALSE) {
       M = ncol(y)
       N = nrow(X)
       if(checks){
-        assert_that(!inherits(y, "tbl")) #TODO: Could silently conver
-        assert_that(is.null(d) || length(d)==N, nrow(y)==N) 
+        assert_that(!inherits(y, "tbl"), msg="d not allowed to be a tibble") #TODO: Could silently conver
+        assert_that(is.null(d) || length(d)==N, nrow(y)==N, msg="d and N don't have the right number of rows.") 
       }
     }
     else {
       m_mode= DS.SINGLE
       M=1    
       if(checks)
-        assert_that(is.null(d) || length(d)==N, length(y)==N)
+        assert_that(is.null(d) || length(d)==N, length(y)==N, msg="d and N don't have the right number of rows.")
     }
     
     if(M>1) N= rep(N, M)
@@ -245,12 +245,12 @@ get_sample_type <- function(y, X, d=NULL, checks=FALSE) {
 
 check_M_K <- function(M, m_mode, K, X_aux, d_aux) {
   if(m_mode==DS.MULTI_SAMPLE) {
-    assert_that(length(X_aux)==M, is.null(d_aux) || length(d_aux)==M)
-    for(m in 1:M) assert_that(ncol(X_aux[[m]])==K)
+    assert_that(length(X_aux)==M, is.null(d_aux) || length(d_aux)==M, msg="Separate samples, but X_aux or d_aux don't have the right structure.")
+    for(m in 1:M) assert_that(ncol(X_aux[[m]])==K, msg="Separate samples, but an element of X_aux doesn't have the right number of columns.")
   }
   else {
-    assert_that(ncol(X_aux)==K)
-    if(m_mode==DS.MULTI_D) assert_that(ncol(d_aux)==M)
+    assert_that(ncol(X_aux)==K, msg="X_aux doesn't have the right number of columns.")
+    if(m_mode==DS.MULTI_D) assert_that(ncol(d_aux)==M, msg="MULTI_D case but not the right number of cols in d.")
   }
 } 
 
@@ -308,19 +308,25 @@ gen_split_m <- function(N, tr_split, M_mult) {
   return(lapply(N, function(n) base::sample(n, tr_split*n)))
 }
 
+split_sample <- function(y, X, d, index_tr) {
+  list[y_tr, y_es] = list(row_sample(y, index_tr), row_sample(y, -index_tr))
+  list[d_tr, d_es] = list(row_sample(d, index_tr), row_sample(d, -index_tr))
+  X_tr = X[index_tr, , drop=FALSE]
+  X_es = X[-index_tr, , drop=FALSE]
+  N_est = nrow(X_es)
+
+  return(list(y_tr, y_es, X_tr, X_es, d_tr, d_es, N_est))
+}
+
 split_sample_m <- function(y, X, d, index_tr) {
   if(!is_sep_sample(X)) {
-    list[y_tr, y_es] = list(row_sample(y, index_tr), row_sample(y, -index_tr))
-    list[d_tr, d_es] = list(row_sample(d, index_tr), row_sample(d, -index_tr))
-    X_tr = X[index_tr, , drop=FALSE]
-    X_es = X[-index_tr, , drop=FALSE]
-    N_est = nrow(X_es)
+    return(split_sample(y, X, d, index_tr))
   }
   else {
     y_tr = y_es = X_tr = X_es = d_tr = d_es = list()
     N_est = rep(0, length(X))
     for(m in 1:length(X))
-      list[y_tr[[m]], y_es[[m]], X_tr[[m]], X_es[[m]], d_tr[[m]], d_es[[m]], N_est[m]] = split_sample_m(y[[m]], X[[m]], d[[m]], index_tr[[m]])
+      list[y_tr[[m]], y_es[[m]], X_tr[[m]], X_es[[m]], d_tr[[m]], d_es[[m]], N_est[m]] = split_sample(y[[m]], X[[m]], d[[m]], index_tr[[m]])
     N_est = sapply(X_es, nrow)
   }
   return(list(y_tr, y_es, X_tr, X_es, d_tr, d_es, N_est))

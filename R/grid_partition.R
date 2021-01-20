@@ -72,11 +72,11 @@ get_X_range <- function(X) {
     are_equal(mode(X), "numeric")
   }
   else {
-    assert_that(is.data.frame(X))
+    assert_that(is.data.frame(X), msg="X is not a matrix or data.frame")
     if(inherits(X, "tbl")) X = as.data.frame(X) #tibble's return tibble (rather than vector) for X[,k], making is.factor(X[,k]) and others fail. Could switch to doing X[[k]] for df-like objects
     for(k in seq_len(ncol(X))) are_equal(mode(X[[k]]), "numeric")
   }
-  assert_that(ncol(X)>=1)
+  assert_that(ncol(X)>=1, msg="X has no columns")
   
   X_range = list()
   K = ncol(X)
@@ -125,7 +125,7 @@ num_cells.grid_partition <- function(obj) {
 #' @export
 print.grid_partition <- function(x, do_str=TRUE, drop_unsplit=TRUE, digits=NULL, ...) {
   #To check: digits
-  assert_that(is.flag(do_str), is.flag(drop_unsplit))
+  assert_that(is.flag(do_str), is.flag(drop_unsplit), msg="One of do_str or drop_unsplit are not flags")
   return(print(get_desc_df.grid_partition(x, do_str=do_str, drop_unsplit=drop_unsplit, digits=digits), 
                digits=digits, ...))
 }
@@ -147,7 +147,7 @@ print.grid_partition <- function(x, do_str=TRUE, drop_unsplit=TRUE, digits=NULL,
 get_desc_df.grid_partition <- function(partition, cont_bounds_inf=TRUE, do_str=FALSE, drop_unsplit=FALSE, 
                                        digits=NULL, unsplit_cat_star=TRUE) {
   #To check: digits
-  assert_that(is.flag(cont_bounds_inf), is.flag(do_str), is.flag(drop_unsplit), is.flag(unsplit_cat_star))
+  assert_that(is.flag(cont_bounds_inf), is.flag(do_str), is.flag(drop_unsplit), is.flag(unsplit_cat_star), msg="One (cont_bounds_inf, do_str, drop_unsplit, unsplit_cat_star)of are not flags.")
   # A split at x_k means that we split to those <= and >
   
   n_segs = partition$nsplits_by_dim+1
@@ -430,37 +430,41 @@ fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, 
                           X_range=NULL, bucket_min_n=NA, bucket_min_d_var=FALSE, obj_fn, 
                           est_plan, partition_i=NA, pr_cl=NULL, bump_samples=0, bump_ratio=1, ...) {
   #Hidden params:
-  # - @param lambda.1se Use the 1se rule to pick the best lambda
+  # - @param lambda_1se Use the 1se rule to pick the best lambda
   # - @param valid_fn Function to quickly check if partition could be valid. User can override.
   # - @param N_est N of samples in the Estimation dataset
   # - @param nsplits_k_warn_limit
   # - @param bump_complexity, method 1 is c(FALSE, FALSE), method 2 is c(FALSE, TRUE), and method 3 is c(TRUE)
   extra_params = list(...)
   valid_fn = NULL
-  lambda.1se=FALSE
+  lambda_1se=FALSE
   N_est=NA
   nsplits_k_warn_limit=200
   bump_complexity=list(doCV=FALSE, incl_comp_in_pick=FALSE)
   if(length(extra_params)>0) {
     if("valid_fn" %in% names(extra_params)) valid_fn = extra_params[['valid_fn']]
-    if("lambda.1se" %in% names(extra_params)) lambda.1se = extra_params[['lambda.1se']]
+    if("lambda_1se" %in% names(extra_params)) lambda_1se = extra_params[['lambda_1se']]
     if("N_est" %in% names(extra_params)) N_est = extra_params[['N_est']]
     if("nsplits_k_warn_limit" %in% names(extra_params)) nsplits_k_warn_limit = extra_params[['nsplits_k_warn_limit']]
     if("bump_complexity" %in% names(extra_params)) bump_complexity = extra_params[['bump_complexity']]
-    assert_that(all(names(extra_params) %in% c("valid_fn", "lambda.1se", "N_est","nsplits_k_warn_limit", "bump_complexity")))
+    good_args = c("valid_fn", "lambda_1se", "N_est","nsplits_k_warn_limit", "bump_complexity")
+    bad_names = names(extra_params)[!(names(extra_params) %in% good_args)]
+    assert_that(length(bad_names)==0, msg=paste(c(list("Illegal arguments:"), bad_names), collapse = " "))
   }
   
   #To check: y, X, d, N_est, X_aux, d_aux, breaks_per_dim, potential_lambdas, X_range, bucket_min_n
-  assert_that(max_splits>0, max_cells>0, min_size>0, is.flag(lambda.1se), is.flag(bucket_min_d_var), 
-              inherits(est_plan, "estimator_plan") || (is.list(est_plan) && inherits(est_plan[[1]], "estimator_plan"))) #verbosity can be negative if decrementd from a fit_estimate call
+  assert_that(max_splits>0, max_cells>0, min_size>0, msg="max_splits, max_cells, min_size need to be positive")
+  assert_that(is.flag(lambda_1se), is.flag(bucket_min_d_var), msg="One of (lambda_1se, bucket_min_d_var) are not flags.") 
+  assert_that(inherits(est_plan, "estimator_plan") || (is.list(est_plan) && inherits(est_plan[[1]], "estimator_plan")), msg="estimator_plan argument (or it's first element) doesn't inherit from estimator_plan class") 
+  #verbosity can be negative if decrementd from a fit_estimate call
   list[M, m_mode, N, K] = get_sample_type(y, X, d, checks=TRUE)
   if(is_sep_sample(X) && length(cv_folds)>1) {
-    assert_that(is.list(cv_folds) && length(cv_folds)==M)
+    assert_that(is.list(cv_folds) && length(cv_folds)==M, msg="When separate samples and length(cv_folds)>1, need is.list(cv_folds) && length(cv_folds)==M.")
   }
   check_M_K(M, m_mode, K, X_aux, d_aux)
   do_cv = is.na(partition_i) && (is.null(potential_lambdas) || length(potential_lambdas)>0)
   do_bump = length(bump_samples)>1 || bump_samples > 0
-  if(!do_cv) assert_that(bump_complexity$incl_comp_in_pick==FALSE)
+  if(!do_cv) assert_that(bump_complexity$doCV==FALSE, msg="When not doing CV, can't including bumping in CV.")
   if(do_bump && bump_complexity$doCV) {
     if(length(bump_samples==1)) bump_samples = list(bump_samples, bump_samples)
     cv_bump_samples = bump_samples[[1]]
@@ -485,7 +489,7 @@ fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, 
   list[partition_seq, is_obj_val_seq, split_seq] = fit_ret
   complexity_seq = sapply(partition_seq, num_cells) - 1
   
-  folds_index_out = NA
+  foldids = NA
   if(!is.na(partition_i)) {
     lambda = NA
     max_splits = partition_i-1
@@ -493,16 +497,15 @@ fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, 
       cat("Note: Couldn't build grid to desired granularity. Using most granular")
       partition_i = length(partition_seq)
     }
-    
+    assert_that(bump_complexity$incl_comp_in_pick==FALSE, msg="When no complexity penalization used, can't include complexity cost in bumping calculation.")
   }
   else {
     if(do_cv) {
       list[nfolds, folds_ret, foldids] = expand_fold_info(y, cv_folds, m_mode)
-      lambda = cv_pick_lambda(y=y, X=X, d=d, folds_ret=folds_ret, nfolds=nfolds, potential_lambdas=potential_lambdas, N_est=N_est, max_splits=max_splits, max_cells=max_cells, 
-                              min_size=min_size, verbosity=verbosity, breaks_per_dim=breaks_per_dim, X_range=X_range, lambda.1se=lambda.1se, 
+      list[lambda,lambda_oos, n_cell_table] = cv_pick_lambda(y=y, X=X, d=d, folds_ret=folds_ret, nfolds=nfolds, potential_lambdas=potential_lambdas, N_est=N_est, max_splits=max_splits, max_cells=max_cells, 
+                              min_size=min_size, verbosity=verbosity, breaks_per_dim=breaks_per_dim, X_range=X_range, lambda_1se=lambda_1se, 
                               bucket_min_n=bucket_min_n, bucket_min_d_var=bucket_min_d_var, obj_fn=obj_fn,
                               est_plan=est_plan, pr_cl=pr_cl, valid_fn=valid_fn, cv_bump_samples=cv_bump_samples, bump_ratio=bump_ratio)
-      folds_index_out = folds_ret$indexOut
     }
     else {
       lambda = potential_lambdas[1]
@@ -529,16 +532,16 @@ fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, 
                                    min_size_aux=min_size, est_plan=est_plan, 
                                    valid_fn=valid_fn)
     bump_B = length(b_rets)
-    partition_i_b = partition_i #default
     
     best_b = NA
     for(b in seq_len(bump_B)) {
       b_ret = b_rets[[b]]
+      if(do_cv || bump_complexity$incl_comp_in_pick) b_complexity_seq = sapply(b_ret$partition_seq, num_cells) - 1
       if(do_cv) {
-        b_complexity_seq = sapply(b_ret$partition_seq, num_cells) - 1
         partition_i_b = which.min(b_ret$is_obj_val_seq + lambda*b_complexity_seq)
       }
       else {
+        partition_i_b = partition_i #default
         if(length(b_ret$partition_seq)<partition_i_b) {
           cat("Note: Couldn't build grid to desired granularity. Using most granular\n")
           partition_i_b = length(b_ret$partition_seq)
@@ -549,7 +552,7 @@ fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, 
       obj_ret = obj_fn(y, X, d, N_est=N_est, partition=partition_b, est_plan=est_plan, sample="trtr")
       if(obj_ret[2]>0 | obj_ret[3]>0) next #N_cell_empty, N_cell_error
       if(bump_complexity$incl_comp_in_pick) {
-        bump_val = obj_ret[1] + lambda*b_ret[partition_i_b]
+        bump_val = obj_ret[1] + lambda*b_complexity_seq[partition_i_b]
       }
       else {
         bump_val = obj_ret[1]
@@ -593,7 +596,7 @@ fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, 
   partition = partition_seq[[partition_i]]
   return(list(partition=partition, is_obj_val_seq=is_obj_val_seq, complexity_seq=complexity_seq, 
               partition_i=partition_i, partition_seq=partition_seq, split_seq=split_seq, lambda=lambda, 
-              folds_index_out=folds_index_out))
+              foldids=foldids))
 }
 
 
@@ -609,6 +612,7 @@ fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, 
 #'
 #' @return list of potential breaks
 get_quantile_breaks <- function(X, X_range, g=20, type=3) {
+  if(is.null(g)) g=20 #fit_estimate has a different default that might get passed in.
   if(is_sep_sample(X)) X = X[[1]]
   X = ensure_good_X(X)
   
@@ -685,8 +689,8 @@ valid_partition <- function(cell_factor, d=NULL, cell_factor_aux=NULL, d_aux=NUL
 }
 
 
-gen_bumped_partitions <- function(bump_samples, bump_ratio, N, m_mode, verbosity, pr_cl, ...) {
-  assert_that(bump_ratio>0, bump_ratio<=1)
+gen_bumped_partitions <- function(bump_samples, bump_ratio, N, m_mode, verbosity, pr_cl, allow_empty_aux=FALSE, allow_est_errors_aux=FALSE, ...) {
+  assert_that(bump_ratio>0, bump_ratio<=1, msg="bump_ration needs to be in (0,1]")
   bump_samples = expand_bump_samples(bump_samples, bump_ratio, N, m_mode)
   bump_B = length(bump_samples)
   
@@ -816,9 +820,10 @@ n_breaks_k <- function(breaks_per_dim, k, partition, X_range) {
 fit_partition_full_k <- function(k, y, X_d, d, X_range, pb, debug, valid_breaks, factors_by_dim, X_aux, 
                                  factors_by_dim_aux, partition, verbosity, allow_empty_aux=TRUE, d_aux, 
                                  allow_est_errors_aux, min_size, min_size_aux, obj_fn, N_est, est_plan, 
-                                 bucket_min_n, bucket_min_d_var, breaks_per_dim, valid_fn) { #, n_cut
-  assert_that(is.flag(bucket_min_d_var), is.flag(allow_empty_aux))
+                                 bucket_min_n=NA, bucket_min_d_var=FALSE, breaks_per_dim, valid_fn=NULL) { #, n_cut
+  assert_that(is.flag(bucket_min_d_var), is.flag(allow_empty_aux), msg="bucket_min_d_var and allow_empty_aux need to be logical flags.")
   list[M, m_mode, N, K] = get_sample_type(y, X_d, d, checks=FALSE)
+  if(is.null(valid_fn)) valid_fn = valid_partition
   search_ret = list()
   best_new_val = Inf
   valid_breaks_k = valid_breaks[[k]]
@@ -904,7 +909,7 @@ fit_partition_full_k <- function(k, y, X_d, d, X_range, pb, debug, valid_breaks,
         next
       }
       if(debug) cat(paste("k", k, ". X_k", X_k_cut, "\n"))
-      obj_ret = obj_fn(y, X_d, d, N_est=N_est, cell_factor = tent_cell_factor, debug=debug, est_plan=est_plan, 
+      obj_ret = obj_fn(y, X_d, d, N_est=N_est, cell_factor_tr = tent_cell_factor, debug=debug, est_plan=est_plan, 
                        sample="trtr")
       if(obj_ret[3]>0) { #don't need to check [2] (empty cells) as we already did that
         #cat("Estimation errors\n")
@@ -972,7 +977,7 @@ fit_partition_full_k <- function(k, y, X_d, d, X_range, pb, debug, valid_breaks,
           next
         }
         if(debug) cat(paste("k", k, ". X_k", win_split_val, "\n"))
-        obj_ret = obj_fn(y, X_d, d, N_est=N_est, cell_factor = tent_cell_factor, debug=debug, est_plan=est_plan, 
+        obj_ret = obj_fn(y, X_d, d, N_est=N_est, cell_factor_tr = tent_cell_factor, debug=debug, est_plan=est_plan, 
                          sample="trtr")
         if(obj_ret[3]>0) { #don't need to check [2] (empty cells) as we already did that
           #cat("Estimation errors\n")
@@ -1015,14 +1020,15 @@ fit_partition_full <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, X_range, ma
                                min_size=2, verbosity=0, breaks_per_dim, N_est, obj_fn, allow_est_errors_aux=TRUE, 
                                min_size_aux=2, est_plan, partition=NULL, nsplits_k_warn_limit=200, pr_cl=NULL, 
                                ...) {
-  assert_that(max_splits>=0, max_cells>=1, min_size>=1,
-              is.flag(allow_est_errors_aux), is.na(nsplits_k_warn_limit) || nsplits_k_warn_limit>=1)
+  assert_that(max_splits>=0, max_cells>=1, min_size>=1, msg="Need max_splits>=0, max_cells>=1, min_size>=1.")
+  assert_that(is.flag(allow_est_errors_aux), msg="allow_est_errors_aux needs to be a flag")
+  assert_that(is.na(nsplits_k_warn_limit) || nsplits_k_warn_limit>=1, msg="nsplits_k_warn_limit not understood")
   list[M, m_mode, N, K] = get_sample_type(y, X, d, checks=TRUE)
   est_min = ifelse(is.null(d), 2, 3) #If don't always need variance calc: ifelse(is.null(d), ifelse(honest, 2, 1), ifelse(honest, 3, 2))
   min_size = max(min_size, est_min)
   if(!allow_est_errors_aux)  min_size_aux = max(min_size_aux, est_min)
   debug = FALSE
-  if(is.null(partition)) partition = grid_partition(X_range, names(X))
+  if(is.null(partition)) partition = grid_partition(X_range, colnames(X))
   breaks_per_dim = get_usable_break_points(breaks_per_dim, X, X_range, partition$dim_cat)
   valid_breaks = vector("list", length=K) #splits_by_dim(s_seq) #stores Xk_val's
   
@@ -1042,7 +1048,7 @@ fit_partition_full <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, X_range, ma
   } 
   split_i = 1
   seq_val = c()
-  obj_ret = obj_fn(y, X, d, N_est=N_est, cell_factor = interaction_m(factors_by_dim, is_sep_sample(X)), est_plan=est_plan, sample="trtr")
+  obj_ret = obj_fn(y, X, d, N_est=N_est, cell_factor_tr = interaction_m(factors_by_dim, is_sep_sample(X)), est_plan=est_plan, sample="trtr")
   if(obj_ret[3]>0 || !is.finite(obj_ret[1])) {
     stop("Estimation error with initial partition")
   }
@@ -1153,7 +1159,7 @@ add_samples <- function (X, X_aux, M_mult) {
 }
 
 
-fit_partition_bump_b <- function(b, samples, y, X_d, d=NULL, m_mode, X_aux, d_aux, verbosity,...){
+fit_partition_bump_b <- function(b, samples, y, X_d, d=NULL, m_mode, X_aux, d_aux, verbosity, nsplits_k_warn_limit=NA, ...){
   if(verbosity>0) cat(paste("Grid > Bumping > b = ", b, "\n"))
   sample = samples[[b]]
   list[y_b, X_b, d_b] = subsample_m(y, X_d, d, sample)
@@ -1167,13 +1173,15 @@ get_part_for_lambda <- function(obj, lambda, is_bumped=FALSE) {
   if(is_bumped) {
     is_obj_val_seq = unlist(lapply(obj, function(f) f$is_obj_val_seq))
     complexity_seq = unlist(lapply(obj, function(f) sapply(f$partition_seq, num_cells) - 1))
+    partition_seq = unlist(lapply(obj, function(f) f$partition_seq ), recursive = FALSE)
   }
   else {
     is_obj_val_seq = obj$is_obj_val_seq
     complexity_seq = sapply(obj$partition_seq, num_cells) - 1
+    partition_seq = obj$partition_seq
   }
   partition_i = which.min(is_obj_val_seq + lambda*complexity_seq)
-  return(list(partition_i, obj$partition_seq[[partition_i]]))
+  return(list(partition_i, partition_seq[[partition_i]]))
 }
 get_num_parts <- function(cvtr_fit, is_bumped=FALSE) {
   if(is_bumped)
@@ -1190,7 +1198,8 @@ get_all_lambda_ties <- function(cvtr_fit, is_bumped=FALSE) {
 
 # ... params sent to fit_partition_full()
 cv_pick_lambda_f <- function(f, y, X_d, d, folds_ret, nfolds, potential_lambdas, N_est, 
-                             verbosity, obj_fn, cv_tr_min_size, est_plan, cv_bump_samples, bump_ratio, ...) {
+                             verbosity, obj_fn, cv_tr_min_size, est_plan, cv_bump_samples, bump_ratio, 
+                             nsplits_k_warn_limit=NA, min_size_aux=1, allow_empty_aux=TRUE, allow_est_errors_aux=FALSE, ...) { #catch some of the params that might still be in ...
   if(verbosity>0) cat(paste("Grid > CV > Fold", f, "\n"))
   supplied_lambda = !is.null(potential_lambdas)
   if(supplied_lambda) n_lambda = length(potential_lambdas)
@@ -1198,33 +1207,41 @@ cv_pick_lambda_f <- function(f, y, X_d, d, folds_ret, nfolds, potential_lambdas,
   list[y_f_tr, y_f_cv, X_f_tr, X_f_cv, d_f_tr, d_f_cv] = split_sample_folds_m(y, X_d, d, folds_ret, f)
 
   do_bump = (length(cv_bump_samples)>1 || cv_bump_samples>0)
+  cvtr_fit = fit_partition_full(y_f_tr, X_f_tr, d_f_tr, X_f_cv, d_f_cv, 
+                                min_size=cv_tr_min_size, verbosity=verbosity, 
+                                N_est=N_est, obj_fn=obj_fn, allow_empty_aux=TRUE, 
+                                allow_est_errors_aux=FALSE, min_size_aux=1, est_plan=est_plan, 
+                                nsplits_k_warn_limit=NA, ...) #min_size_aux is weaker than removing est errors
+  
   if(do_bump) {
-    if(length(cv_bump_samples)>0) cv_bump_samples = cv_bump_samples[[f]]
-    list[M, m_mode, N, K] = get_sample_type(y, X_d, d, checks=FALSE)
-    cvtr_fit = gen_bumped_partitions(bump_samples=cv_bump_samples, bump_ratio, N, m_mode, verbosity=verbosity, 
-                                   min_size=cv_tr_min_size*bump_ratio, 
-                                   y=y_f_tr, X_d=X_f_tr, d=d_f_tr, X_aux=X_f_cv, d_aux=d_f_cv, 
-                                   N_est=N_est, obj_fn=obj_fn, allow_empty_aux=TRUE, allow_est_errors_aux=FALSE, 
-                                   min_size_aux=1, est_plan=est_plan, nsplits_k_warn_limit=NA,
-                                   ...)
-  }
-  else {
-    cvtr_fit = fit_partition_full(y_f_tr, X_f_tr, d_f_tr, X_f_cv, d_f_cv, 
-                                  min_size=cv_tr_min_size, verbosity=verbosity, 
-                                  N_est=N_est, obj_fn=obj_fn, allow_empty_aux=TRUE, 
-                                  allow_est_errors_aux=FALSE, min_size_aux=1, est_plan=est_plan, 
-                                  nsplits_k_warn_limit=NA, ...) #min_size_aux is weaker than removing est errors
+    if(length(cv_bump_samples)>1) cv_bump_samples = cv_bump_samples[[f]]
+    list[M, m_mode, N_tr, K] = get_sample_type(y_f_tr, X_f_tr, d_f_tr, checks=FALSE)
+    cvtr_fit_bumps = gen_bumped_partitions(bump_samples=cv_bump_samples, bump_ratio, N_tr, m_mode, verbosity=verbosity, pr_cl=NULL, 
+                                     min_size=cv_tr_min_size*bump_ratio, 
+                                     y=y_f_tr, X_d=X_f_tr, d=d_f_tr, X_aux=X_f_cv, d_aux=d_f_cv, 
+                                     N_est=N_est, obj_fn=obj_fn, 
+                                     min_size_aux=1, est_plan=est_plan, nsplits_k_warn_limit=NA,
+                                     allow_empty_aux=allow_empty_aux, allow_est_errors_aux=allow_est_errors_aux,
+                                     ...)
+    #Use the updated values on the unbumped sample
+    for(b in 1:length(cvtr_fit_bumps)) {
+      #partition_seq=partition_seq, is_obj_val_seq
+      cvtr_fit_bumps[[b]]$is_obj_val_seq = sapply(cvtr_fit_bumps[[b]]$partition_seq, function(p){
+        obj_fn(y_f_tr, X_f_tr, d_f_tr, partition=p, est_plan=est_plan, sample="trtr")[1]
+      })
+    }
+    cvtr_fit = c(list(cvtr_fit), cvtr_fit_bumps)
   }
   
   if(!supplied_lambda) {
     return(cvtr_fit)
   } 
   #If we know the lambdas, eval data while we have it
-  return(eval_lambdas(obj_fn, est_plan, potential_lambdas, cvtr_fit, y_f_cv, X_f_cv, d_f_cv, N_est, do_bump))
+  return(eval_lambdas(obj_fn, est_plan, potential_lambdas, cvtr_fit, y_f_tr, X_f_tr, d_f_tr, y_f_cv, X_f_cv, d_f_cv, N_est, do_bump))
 }
 
 
-eval_lambdas <- function(obj_fn, est_plan, potential_lambdas, cvtr_fit, y_f_cv, X_f_cv, d_f_cv, N_est, is_bumped) {
+eval_lambdas <- function(obj_fn, est_plan, potential_lambdas, cvtr_fit, y_f_tr, X_f_tr, d_f_tr, y_f_cv, X_f_cv, d_f_cv, N_est, is_bumped) {
   partition_oos_cache = rep(NA, get_num_parts(cvtr_fit, is_bumped))
   n_lambda = length(potential_lambdas)
   
@@ -1235,7 +1252,7 @@ eval_lambdas <- function(obj_fn, est_plan, potential_lambdas, cvtr_fit, y_f_cv, 
     if(is.na(partition_oos_cache[partition_i])) {
       debug = FALSE 
       if(debug) cat(paste("s_by_dim", paste(part$s_by_dim, collapse=" "), "\n"))
-      obj_ret = obj_fn(y_f_cv, X_f_cv, d_f_cv, N_est=N_est, partition=part, debug=debug, 
+      obj_ret = obj_fn(y_f_tr, X_f_tr, d_f_tr, y_f_cv, X_f_cv, d_f_cv, N_est=N_est, partition=part, debug=debug, 
                        est_plan=est_plan, sample="trcv")
       oos_obj_val = obj_ret[1]
       partition_oos_cache[partition_i] = oos_obj_val
@@ -1243,6 +1260,33 @@ eval_lambdas <- function(obj_fn, est_plan, potential_lambdas, cvtr_fit, y_f_cv, 
     lambda_oos[lambda_i] = partition_oos_cache[partition_i]
   }
   return(lambda_oos)
+}
+
+lambda_1se_selector <- function(potential_lambdas, lambda_oos, min_obs_1se, max_oos_err_allowed, verbosity) {
+  n_lambda = ncol(lambda_oos)
+  nfolds = nrow(lambda_oos)
+  lambda_oos_means = colMeans(lambda_oos)
+  lambda_oos_min_i = which.min(lambda_oos_means)
+  #lambda_oos_sd = apply(X=lambda_oos, MARGIN=2, FUN=sd) #don't need all for now
+  obs = lambda_oos[, lambda_oos_min_i]
+  if(min_obs_1se>nfolds) {
+    for(delta in 1:min(n_lambda-lambda_oos_min_i, lambda_oos_min_i-1)) {
+      if(lambda_oos_min_i+delta<=n_lambda) {
+        obs = c(obs, lambda_oos[, lambda_oos_min_i+delta])
+      }
+      if(lambda_oos_min_i-delta>=1) {
+        obs = c(obs, lambda_oos[, lambda_oos_min_i-delta])
+      }
+      if(length(obs)>=min_obs_1se) break
+    }
+    print(obs)
+  }
+  max_oos_err_allowed = min(lambda_oos_means) + sd(obs)
+  if(verbosity>0) cat(paste("max_oos_err_allowed:", paste(max_oos_err_allowed, collapse=" "), "\n"))
+  lambda_star_i = min(which(lambda_oos_means <= max_oos_err_allowed))
+  lambda_star = potential_lambdas[lambda_star_i]
+  
+  return(lambda_star)
 }
 
 # cv_tr_min_size: We don't want this too large as (since we have less data) otherwise we might not find the 
@@ -1258,8 +1302,9 @@ eval_lambdas <- function(obj_fn, est_plan, potential_lambdas, cvtr_fit, y_f_cv, 
 #       roughly sampling the true  CV lambda function (which is is a step-function) and we might miss it and 
 #       wrongly evaluate the benefit of each subgrid and therefore  pick the wrong one.
 # ... params sent to cv_pick_lambda_f
-cv_pick_lambda <- function(y, X, d, folds_ret, nfolds, potential_lambdas, N_est, min_size, verbosity, lambda.1se=FALSE, 
-                           min_obs_1se=5, obj_fn, cv_tr_min_size=NA, est_plan, pr_cl=NULL, cv_bump_samples=0, bump_ratio=1, ...) {
+# use cv_obj_fn if you want to a different obj fun for cv eval (rather than tr,tr training)
+cv_pick_lambda <- function(y, X, d, folds_ret, nfolds, potential_lambdas=NULL, N_est=NA, min_size=5, verbosity=0, lambda_1se=FALSE, 
+                           min_obs_1se=5, obj_fn, cv_tr_min_size=NA, est_plan, pr_cl=NULL, cv_bump_samples=0, bump_ratio=1, cv_obj_fn=NULL, ...) {
   #If potential_lambdas is NULL, then only have to iterate through lambda values that change partition_i (for any fold)
   #If is_obj_val_seq is monotonic then this is easy and can do sequentially, but not sure if this is the case
   supplied_lambda = !is.null(potential_lambdas)
@@ -1277,10 +1322,12 @@ cv_pick_lambda <- function(y, X, d, folds_ret, nfolds, potential_lambdas, N_est,
   params = c(list(y=y, X_d=X, d=d, folds_ret=folds_ret, nfolds=nfolds, potential_lambdas=potential_lambdas, 
                 N_est=N_est, verbosity=verbosity-1,
                 obj_fn=obj_fn, cv_tr_min_size=cv_tr_min_size, 
-                est_plan=est_plan, cv_bump_samples=cv_bump_samples), list(...))
+                est_plan=est_plan, cv_bump_samples=cv_bump_samples, bump_ratio=bump_ratio), list(...))
   
   col_rets = my_apply(1:nfolds, cv_pick_lambda_f, verbosity==1 || !is.null(pr_cl), pr_cl, params)
   do_bump = (length(cv_bump_samples)>1 || cv_bump_samples>0)
+  
+  if(is.null(cv_obj_fn)) cv_obj_fn = obj_fn
   
   # Process nfolds loop
   if(!supplied_lambda) {
@@ -1293,6 +1340,7 @@ cv_pick_lambda <- function(y, X, d, folds_ret, nfolds, potential_lambdas, N_est,
     for(f in 1:nfolds) {
       lambda_oos[f, ] = col_rets[[f]]
     }
+    n_cell_table = NULL
   }
   
   if(!supplied_lambda) {
@@ -1305,34 +1353,30 @@ cv_pick_lambda <- function(y, X, d, folds_ret, nfolds, potential_lambdas, N_est,
     }
     n_lambda = length(potential_lambdas)
     lambda_oos = matrix(NA, nrow=nfolds, ncol=n_lambda)
+    n_cell_table = matrix(NA, nrow=nfolds, ncol=n_lambda)
     
     for(f in 1:nfolds) {
       list[y_f_tr, y_f_cv, X_f_tr, X_f_cv, d_f_tr, d_f_cv] = split_sample_folds_m(y, X, d, folds_ret, f)
-      lambda_oos[f,] = eval_lambdas(obj_fn, est_plan, potential_lambdas, cvtr_fits[[f]], y_f_cv, X_f_cv, d_f_cv, N_est, do_bump)
+      lambda_oos[f,] = eval_lambdas(cv_obj_fn, est_plan, potential_lambdas, cvtr_fits[[f]], y_f_tr, X_f_tr, d_f_tr, y_f_cv, X_f_cv, d_f_cv, N_est, do_bump)
+      if(FALSE) {
+        #ns = get_num_parts(cvtr_fits[[f]])
+        
+        for(lambda_i in 1:length(potential_lambdas)) {
+          lambda = potential_lambdas[lambda_i]
+          list[partition_i, part] = get_part_for_lambda(cvtr_fits[[f]], lambda)
+          n_cell_table[f, lambda_i] = num_cells(part)
+          #print(paste("fit=good. lambda: ", lambda))
+          #good_obj_ret = cv_obj_fn(y_f_tr, X_f_tr, d_f_tr, y_f_cv, X_f_cv, d_f_cv, N_est=N_est, partition=part, debug=TRUE, 
+          #                 est_plan=est_plan, sample="trcv")
+        }
+      }
     }
   }
   lambda_oos_means = colMeans(lambda_oos)
   lambda_oos_min_i = which.min(lambda_oos_means)
   #if(lambda_oos_min_i==length(lambda_oos_means)) cat(paste("Warning: MSE-min lambda is the smallest (of",length(lambda_oos_means),"potential lambdas)\n"))
-  if(lambda.1se) {
-    #lambda_oos_sd = apply(X=lambda_oos, MARGIN=2, FUN=sd) #don't need all for now
-    obs = lambda_oos[, lambda_oos_min_i]
-    if(min_obs_1se>nfolds) {
-      for(delta in 1:min(n_lambda-lambda_oos_min_i, lambda_oos_min_i-1)) {
-        if(lambda_oos_min_i+delta<=n_lambda) {
-          obs = c(obs, lambda_oos[, lambda_oos_min_i+delta])
-        }
-        if(lambda_oos_min_i-delta>=1) {
-          obs = c(obs, lambda_oos[, lambda_oos_min_i-delta])
-        }
-        if(length(obs)>=min_obs_1se) break
-      }
-      print(obs)
-    }
-    max_oos_err_allowed = min(lambda_oos_means) + sd(obs)
-    if(verbosity>0) cat(paste("max_oos_err_allowed:", paste(max_oos_err_allowed, collapse=" "), "\n"))
-    lambda_star_i = min(which(lambda_oos_means <= max_oos_err_allowed))
-    lambda_star = potential_lambdas[lambda_star_i]
+  if(lambda_1se) {
+    lambda_star = lambda_1se_selector(potential_lambdas, lambda_oos, min_obs_1se, max_oos_err_allowed, verbosity)
   }
   else {
     lambda_star = potential_lambdas[lambda_oos_min_i]
@@ -1350,5 +1394,5 @@ cv_pick_lambda <- function(y, X, d, folds_ret, nfolds, potential_lambdas, N_est,
     lambda_star=1
   }
   
-  return(lambda_star)
+  return(list(lambda_star,lambda_oos, n_cell_table))
 }

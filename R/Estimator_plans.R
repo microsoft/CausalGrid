@@ -167,7 +167,8 @@ residualize.lm_est <- function(obj, y, X, d, sample) {return(list(y=y, d=d))}
 #' @describeIn est_params lm_est
 #' @export
 est_params.lm_est <- function(obj, y, d=NULL, X, sample="est", ret_var=FALSE) {
-  assert_that(!is.null(d))
+  assert_that(is.flag(ret_var), sample %in% c("est", "trtr", "trcv"), msg="Don't understand ret_var or samples")
+  assert_that(!is.null(d), msg="lm_est requires a non-NULL d")
   
   if(sample=="trtr" || (sample=="est" && obj$control_est)) {
     if(ret_var) return(cont_te_var_X_estimator(y, d, X, obj$ctrl_names))
@@ -357,7 +358,8 @@ residualize.grid_rf <- function(obj, y, X, d, sample) {
 #' @describeIn est_params grid_rf
 #' @export
 est_params.grid_rf <- function(obj, y, d=NULL, X, sample="est", ret_var=FALSE) {
-  assert_that(is.flag(ret_var), sample %in% c("est", "trtr", "trcv"), !is.null(d))
+  assert_that(is.flag(ret_var), sample %in% c("est", "trtr", "trcv"), msg="Don't understand ret_var or samples")
+  assert_that(!is.null(d), msg="grid_rf requires a non-NULL d.")
   
   if(ret_var) return(cont_te_var_estimator(y, d, X))
   return(cont_te_estimator(y, d, X))

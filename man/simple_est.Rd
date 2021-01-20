@@ -2,12 +2,12 @@
 % Please edit documentation in R/Estimator_plans.R
 \name{simple_est}
 \alias{simple_est}
-\alias{is.simple_est}
+\alias{is_simple_est}
 \title{Create a simple_est object}
 \usage{
 simple_est(te_fn, te_var_fn, dof = 2)
 
-is.simple_est(x)
+is_simple_est(x)
 }
 \arguments{
 \item{te_fn}{Bare Treatment Estimation function}
@@ -30,6 +30,6 @@ Tests whether oject is an \code{simple_est}.
 }
 \section{Functions}{
 \itemize{
-\item \code{is.simple_est}: is simple_est
+\item \code{is_simple_est}: is simple_est
 }}
 
