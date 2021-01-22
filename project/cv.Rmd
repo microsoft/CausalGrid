@@ -52,8 +52,8 @@ breaks_k = seq(nbreaks_k)/(nbreaks_k+1)
 breaks = list(breaks_k, breaks_k, breaks_k)
 tau = tau_fn(X)
 d = rep(c(0,1), N/2) #treatment assignment
-S = 100
-err_sds = c(1,0.1, 0.01, 0.001) #c(1,0.1, 0.01, 0.001)
+S = 200
+err_sds = c(1, 0.3, 0.1, 0.03) #c(1,0.1, 0.01, 0.001)
 Ks = c(2,5,10) #c(2,5,10)
 cores_to_use = getOption("cl.cores", default=5)
 ```
@@ -85,13 +85,15 @@ if(cores_to_use>1){
 
 # using foreach structure so I can export some globals (couldn't see how to do it with parLapply).
 # using doSNOW instead of generic doparallel as it has a nice progress bar option.
+t1 = Sys.time()
+cat(paste("Start time: ",t1,"\n"))
 pb <- txtProgressBar(max = S, style = 3)
 progress <- function(n) setTxtProgressBar(pb, n)
 opts <- list(progress = progress)
 sim_rets = foreach(s=1:S, .packages=c("gsubfn","CausalGrid"), .options.snow = opts) %doChange% { #.errorhandling = "pass", .export=c("tau_fn", "eval_mse")
   n_cell_cv_s = n_cell_cv_tilde_s = n_cell_cv_rest_s = n_cell_cv_1se_s = matrix(NA, nrow=length(err_sds), ncol=length(Ks))
   for(err_sd_i in 1:length(err_sds)){
-    y = y_mat[,err_sd_i]
+    y = y_mats[[s]][,err_sd_i]
     for(k_i in 1:length(Ks)) {
       set.seed(1337)
       k = Ks[k_i]
@@ -116,7 +118,10 @@ sim_rets = foreach(s=1:S, .packages=c("gsubfn","CausalGrid"), .options.snow = op
   }
   list(n_cell_cv_s=n_cell_cv_s, n_cell_cv_tilde_s=n_cell_cv_tilde_s, n_cell_cv_rest_s=n_cell_cv_rest_s, n_cell_cv_1se_s=n_cell_cv_1se_s)
 }
+t2 = Sys.time() #can us as.numeric(t1) to convert to seconds
+td = t2-t1
 close(pb)
+cat(paste("Total time: ",format(as.numeric(td))," ", attr(td,"units"),"\n"))
 if(cores_to_use>1) stopCluster(pr_cl)
 ```
 
@@ -141,13 +146,16 @@ n_cell_cv_1se = apply(n_cell_cv_1se, c(2,3), mean)
 
 ```{r}
 print("CV n_cell mean")
-print(n_cell_cv_mean)
+print(n_cell_cv_mean) #Generally increases with k and as err_sd falls. With k because can grow deeper partitions (more chances for good anomolous results) on the majority of the data and mostly because it's now harder to estimate test (see next set where we do perfectly.). With this type of setup we'd always expect overly complex models (even if true DGP is more complicated than one split) as going below has true cost.
 #print("num sims with n_cell_cv>2")
 #print(n_cell_cv_over)
 print("CV (w/ oracle test effect) n_cell mean")
 print(n_cell_cv_tilde_mean)
-print("CV (rest to max_split=3) n_cell mean")
+print("CV (rest to max_split=3) n_cell mean") #fewer chances to get anomolously good results
 print(n_cell_cv_rest)
-print("CV (w/ lambda_1se) n_cell mean")
+print("CV (w/ lambda_1se) n_cell mean") #Does much better given the true objective function is flat .
 print(n_cell_cv_1se)
+```
+```{r}
+n_cell_cv_1se
 ```

@@ -1,5 +1,7 @@
 # Project
-Tools for finding heterogeneous treatment effects (and means) based on partitioning the covariate/feature space via full cross cuts and solved via greedy search. These splits go across the entire sample rather than done on increasingly smaller blocks (as [Causal Tree])(https://github.com/susanathey/causalTree) does).
+Tools for finding heterogeneous treatment effects (and means) based on partitioning the covariate/feature space via full cross-cuts and solved via greedy search. A typical usage would be analyzing and experiment to find the high-level subgroups (a coarse partition that is useful to humans) that differ in their estimated treatment effects. 
+
+This package is inspired by, and uses ideas from, [Causal Tree](https://github.com/susanathey/causalTree) but aims to have the partition be more interpretable and have better accuracy. It is slower, though for high-level partitions this is usually not an issue.
 
 This project is currently in an advanced prototype stage. Issues may still be found in common usage. Please create issues for these!
 

@@ -2,15 +2,12 @@
 # - To change parallel/single-threaded, search for PARALLEL comments
 # - There is a "suffix" for output files so that one can test w/o overwritting
 
-# TODO:
-# - Switch to using my_apply from package so that I don't need separate doparallel package
-
 library(gsubfn)
 library(devtools)
 suppressPackageStartupMessages(library(data.table)) # suppressPackageStartupMessages(library(assertthat))
 library(CausalGrid)
 library(causalTree)
-library(doParallel)
+library(doSNOW)
 library(foreach)
 library(xtable)
 library(stringr)
@@ -38,6 +35,7 @@ minsize=25
 S = 100 #3 100, TODO: Is this just 1!?
 Ns = c(500, 1000) #c(500, 1000)
 N_test = 8000
+N_bumps = 20
 D = 5 #3
 Ks = c(2, 2, 10, 20)
 good_features = list(c(T, F), c(T, T, rep(F, 8)), c(rep(T, 4), rep(F, 16)), c(T,T), c(T,T))
@@ -47,7 +45,7 @@ NIters = NN*D*S
 
 
 #Execution config
-n_parallel = 5 #1 5; PARALLEL
+n_parallel = getOption("cl.cores", default=5) #1 5; PARALLEL
 my_seed = 1337
 set.seed(my_seed)
 rf.num.threads = 1 #NULL will multi-treatd, doesn't seem to help much with small data
@@ -103,24 +101,24 @@ sim_eval_ct <- function(data1, data2, good_mask, honest=FALSE) {
   return(list(ct_fit, nl, mse, ngood, ntot))
 }
 
-sim_cg_fit <- function(y, X, w, tr_sample, verbosity=0, honest=FALSE, do_rf=FALSE, num.threads=rf.num.threads, num.trees=100, ...) {
+sim_cg_fit <- function(y, X, w, tr_sample, verbosity=0, do_rf=FALSE, num.threads=rf.num.threads, num.trees=100, ...) {
   set.seed(my_seed)
   if(do_rf) {
     return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, 
                                   min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, 
-                                  honest=honest, ctrl_method=grid_rf(num.threads=num.threads, num.trees=num.trees), 
+                                  ctrl_method=grid_rf(num.threads=num.threads, num.trees=num.trees), 
                                   nsplits_k_warn_limit=NA, bump_complexity=list(doCV=TRUE, incl_comp_in_pick=TRUE), ...))
   }
   else {
     return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, 
                                   min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, 
-                                  honest=honest, nsplits_k_warn_limit=NA, bump_complexity=list(doCV=TRUE, incl_comp_in_pick=TRUE), ...))
+                                  nsplits_k_warn_limit=NA, bump_complexity=list(doCV=TRUE, incl_comp_in_pick=TRUE), ...))
   }
 }
 
 sim_cg_vectors <- function(grid_fit, mask, X_te, tau_te) {
   nsplits = grid_fit$partition$nsplits_by_dim
-  preds = predict.estimated_partition(grid_fit, new_X=X_te)
+  preds = predict(grid_fit, new_X=X_te)
   cg_mse = mean((preds - tau_te)^2)
   return(c(num_cells(grid_fit), cg_mse, sum(nsplits[mask]), sum(nsplits)))
 }
@@ -175,11 +173,12 @@ ct_h_nl = results_ct_h[,4]
 # Eval CG -----
 cat("Eval CG\n")
 
-
+`%doChange%` = if(n_parallel>1) `%dopar%` else `%do%` #so I can just change variable without changing other code for single-threaded
 if(n_parallel>1) {
   if(file.exists(log_file)) file.remove(log_file)
   cl <- makeCluster(n_parallel, outfile=log_file)
-  registerDoParallel(cl)
+  #cl <- makeCluster(n_parallel)
+  registerDoSNOW(cl)
 }
 
 bar_length = if(n_parallel>1) NN*D else S*NN*D
@@ -187,7 +186,6 @@ t1 = Sys.time()
 cat(paste("Start time: ",t1,"\n"))
 pb = utils::txtProgressBar(0, bar_length, style = 3)
 run=1
-N_bumps = 20
 outer_results = list()
 for(d in 1:D) {
   for(N_i in 1:NN) {
@@ -195,9 +193,9 @@ for(d in 1:D) {
       utils::setTxtProgressBar(pb, run)
       run = run+1
     }
-    results_s = list() #PARALLEL: comment-out
+    #results_s = list() #PARALLEL: comment-out
     #for(s in 1:S){  #PARALLEL: comment-out, uncomment next
-    results_s = foreach(s=1:S, .packages=c("proto","gsubfn","rpart", "rpart.plot", "data.table","causalTree", "ranger",  "lattice", "ggplot2", "caret", "Matrix", "foreach", "CausalGrid"), .errorhandling = "pass") %dopar% { #, .combine=rbind
+    results_s = foreach(s=1:S, .packages=c("proto","gsubfn","rpart", "rpart.plot", "data.table","causalTree", "ranger",  "lattice", "ggplot2", "caret", "Matrix", "foreach", "CausalGrid"), .errorhandling = "pass") %doChange% { #, .combine=rbind
       if(n_parallel==1) {
         utils::setTxtProgressBar(pb, run)
         run = run+1
@@ -210,11 +208,11 @@ for(d in 1:D) {
       tr_sample = c(rep(TRUE, N), rep(FALSE, N))
       
       
-      grid_a_fit <- sim_cg_fit(y, X, w, tr_sample, honest=FALSE)
-      grid_a_LassoCV_fit <- sim_cg_fit(y, X, w, tr_sample, honest=FALSE, ctrl_method="LassoCV")
-      grid_a_RF_fit <- sim_cg_fit(y, X, w, tr_sample, honest=FALSE, do_rf=TRUE)
-      grid_a_LassoCV_b_fit <- sim_cg_fit(y, X, w, tr_sample, honest=FALSE, ctrl_method="LassoCV", bump_samples=N_bumps)
-      grid_a_RF_b_fit <- sim_cg_fit(y, X, w, tr_sample, honest=FALSE, do_rf=TRUE, bump_samples=N_bumps)
+      grid_a_fit <- sim_cg_fit(y, X, w, tr_sample)
+      grid_a_LassoCV_fit <- sim_cg_fit(y, X, w, tr_sample, ctrl_method="LassoCV")
+      grid_a_RF_fit <- sim_cg_fit(y, X, w, tr_sample, do_rf=TRUE)
+      grid_a_LassoCV_b_fit <- sim_cg_fit(y, X, w, tr_sample, ctrl_method="LassoCV", bump_samples=N_bumps)
+      grid_a_RF_b_fit <- sim_cg_fit(y, X, w, tr_sample, do_rf=TRUE, bump_samples=N_bumps)
 
       grid_a_am_fit <- change_complexity(grid_a_fit, y, X, d=w, which.min(abs(ct_a_nl[iter] - (grid_a_fit$complexity_seq + 1))))
       grid_a_LassoCV_b_hm_fit <- change_complexity(grid_a_LassoCV_b_fit, y, X, d=w, which.min(abs(ct_h_nl[iter] - (grid_a_LassoCV_b_fit$complexity_seq + 1))))

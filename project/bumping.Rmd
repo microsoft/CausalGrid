@@ -34,8 +34,8 @@ Some common parameters
 set.seed(1337) #data differs across sims, but the bump samples indexes are the same across sims
 N=500
 n_bump = 20
-S=100
-cores_to_use = getOption("cl.cores", default=1)
+S=200
+cores_to_use = getOption("cl.cores", default=5)
 ```
 
 
@@ -57,6 +57,8 @@ if(cores_to_use>1){
 } 
 
 # using doSNOW instead of generic doparallel as it has a nice progress bar option.
+t1 = Sys.time()
+cat(paste("Start time: ",t1,"\n"))
 pb <- txtProgressBar(max = S, style = 3)
 progress_fn <- function(n) setTxtProgressBar(pb, n)
 n_methods = 1 + 1 + 1 + 4
@@ -97,7 +99,10 @@ sim_rets = foreach(s=1:S, .packages=c("CausalGrid"), .options.snow = list(progre
   list(is_objs=is_objs, max_dev=max_dev, min_dev=min_dev, n_cells=n_cells)
   #sim_rets[[s]] = list(is_objs=is_objs, max_dev=max_dev, min_dev=min_dev, n_cells=n_cells)
 }
+t2 = Sys.time() #can us as.numeric(t1) to convert to seconds
+td = t2-t1
 close(pb)
+cat(paste("Total time: ",format(as.numeric(td))," ", attr(td,"units"),"\n"))
 if(cores_to_use>1) stopCluster(pr_cl)
 ```
 
@@ -128,5 +133,5 @@ print(colMeans(n_cells_mat[,1:2]))
 
 print("CV Depth")
 print(paste("n_cells mean (4 is perfect):", paste(cv_names, collapse=", ")))
-print(colMeans(n_cells_mat[,3:n_methods]))
+print(colMeans(n_cells_mat[,3:n_methods])) #including complexity limits the #. Using Bumping in CV means we can tolearte more complexity when picking optimal lambda. And moving from no bumping to bumping the benefit of complexity is more so we have more cells.
 ```
