@@ -44,6 +44,7 @@
 #' @import gsubfn
 #' @import Rcpp
 #' @import assertthat
+#' @importFrom purrr partial
 #' @docType package
 #' @name CausalGrid
 NULL
@@ -88,8 +89,8 @@ NULL
 #'
 #' Cleanup:
 #'
-#' - Encapsulate valid_partition() + bucket-splits with est_plan (deal with what
-#' happens with est error). + Doc.
+#' - Encapsulate valid_partition() + split_check_fn with est_plan (deal with
+#' what happens with est error). + Doc.
 #'
 #' - Styler and lintr; https://style.tidyverse.org/
 #'
@@ -103,8 +104,7 @@ NULL
 #'
 #' - Allow initial splits to be pre-determined.
 #'
-#' - Cleanup Predict function and allow y_hat (how do other packages distinguish
-#' y_hat from d_hat?). Allow mult. te
+#' - Predict function: allow y_hat and llow multidataset te
 #'
 #' - Like GRF, When considering a split, require that each child node have
 #' min.node.size samples with treatment value less than the average, and at
@@ -133,6 +133,8 @@ NULL
 #'
 #' - Documentation descriptions (separate from titles). Define the bump samples
 #' explicit case.
+#' 
+#' - Show in vignette how to hand-build a partition, and estimate it.
 #'
 #' - Have nicer factor labels (especially if split at bottom point, make [T,T]
 #' rather than [T,T+1], and redo top (to not have -1))
@@ -161,6 +163,9 @@ NULL
 #' - see if can swap `findInterval` for `cut()` (do I need the labels)
 #'
 #' Graphing:
+#'
+#' - Probably if only 1-degree of heterogeneity should return a line graph
+#' rather than an "extended" 2d plot
 #'
 #' - Add marginal plots:
 #' https://www.r-graph-gallery.com/277-marginal-histogram-for-ggplot2.html

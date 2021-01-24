@@ -5,7 +5,8 @@ Requirements
 Notes on building:
 - You will need RTools (probably at least v3.5)
 - install (renv)[https://rstudio.github.io/renv/articles/renv.html] package. Then after opening the project you should be able to use `renv::restore()`.
-- On Windows, when building, restart the R session before "Install and restart", otherwise it can't copy over the DLL (it stays in memory)
+- Given the cpp you should use "Install and restart" (and not use "Load All") to get the new library. On Windows, when building, you should restart the R session before this otherwise it can't copy over the DLL (it stays in memory).
+- If you want updated vignettes to show up when using "Load All", you can use `devtools::build_vignettes()`.
 - Building copies everything over to temp dir and then deletes, so might want to move the large files (`project/sim.RData`) out to save time.
 
 

@@ -1,10 +1,21 @@
-# Notes:
-# - To change parallel/single-threaded, search for PARALLEL comments
-# - There is a "suffix" for output files so that one can test w/o overwritting
+---
+title: "repl_sim"
+output: html_notebook
+---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Notes:
+- To change parallel/single-threaded, search for PARALLEL comments
+- There is a "suffix" for output files so that one can test w/o overwritting
+
+
+
+```{r, message=FALSE}
 library(gsubfn)
 library(devtools)
-suppressPackageStartupMessages(library(data.table)) # suppressPackageStartupMessages(library(assertthat))
 library(CausalGrid)
 library(causalTree)
 library(doSNOW)
@@ -15,37 +26,45 @@ library(glmnet)
 library(ranger)
 library(gridExtra)
 library(ggplot2)
-source("project/ct_utils.R")
-source("tests/dgps.R")
+library(rprojroot)
+root_dir <- rprojroot::find_package_root_file()
+source(paste0(root_dir,"/project/ct_utils.R"))
+source(paste0(root_dir,"/tests/dgps.R"))
+```
 
-#Paths
+```{r paths}
 export_dir = "" #can be turned off below
 sim_rdata_fname = "project/sim.RData"
 log_file = "project/log.txt"
 tbl_export_path = paste0(export_dir, "tables/")
 fig_export_path = paste0(export_dir, "figs/")
 suffix = "-temp"
+```
 
+```{r}
+#Sim parameters
+S = 3 #3 100, TODO: Is this just 1!?
+n_parallel = getOption("cl.cores", default=3) #1 5; PARALLEL
+
+Ns = c(500, 1000) #c(500, 1000)
+N_test = 8000
+D = 5 #3
+Ks = c(2, 2, 10, 20, 2)
+good_features = list(c(T, F), c(T, T, rep(F, 8)), c(rep(T, 4), rep(F, 16)), c(T,T), c(T,T))
+```
+
+```{r}
 #Estimation config
 b = 4
 nfolds = 5
 minsize=25
-
-#Sim parameters
-S = 100 #3 100, TODO: Is this just 1!?
-Ns = c(500, 1000) #c(500, 1000)
-N_test = 8000
 N_bumps = 20
-D = 5 #3
-Ks = c(2, 2, 10, 20)
-good_features = list(c(T, F), c(T, T, rep(F, 8)), c(rep(T, 4), rep(F, 16)), c(T,T), c(T,T))
 
 NN = length(Ns)
 NIters = NN*D*S
 
 
 #Execution config
-n_parallel = getOption("cl.cores", default=5) #1 5; PARALLEL
 my_seed = 1337
 set.seed(my_seed)
 rf.num.threads = 1 #NULL will multi-treatd, doesn't seem to help much with small data
@@ -56,9 +75,10 @@ est_names = c("Causal Tree (CT)", "Causal Tree - Adaptive (CT-A)",
               "CG + Linear Controls (CG-X)", "CG + RF Controls (CG-RF)", 
               "CG-X + Bumping (CG-X-B)", "CG-RF + Bumping (CG-RF-B)", 
               "CG-X-B - Matching CT size (CG-X-B:HM)", "CG-RF-B - Matching CT size (CG-RF-B:HM)")
+```
 
-
-# Helper functions --------
+# Helper functions 
+```{r}
 sim_data <- function(n=500, design=1) {
   if(design<=3) return(AI_sim(n, design))
   return(XOR_sim(n, design==4))
@@ -130,10 +150,11 @@ ct_ndim_splits <- function(obj, K) {
 cg_ndim_splits <- function(obj) {
   return(sum(obj$partition$nsplits_by_dim>0))
 }
+```
 
-# Generate Data --------
+# Generate Data
 
-cat("Generating Data\n")
+```{r}
 data1 = list()
 data2 = list()
 for(d in 1:D) {
@@ -146,10 +167,10 @@ for(d in 1:D) {
     }
   }
 }
+```
 
-# Eval CT ------
-cat("Eval CT\n")
-
+# Eval CT
+```{r}
 results_ct_h = matrix(0,nrow=0, ncol=7)
 results_ct_a = matrix(0,nrow=0, ncol=7)
 ct_h_fit_models = list()
@@ -169,15 +190,15 @@ for(d in 1:D) {
 }
 ct_a_nl = results_ct_a[,4]
 ct_h_nl = results_ct_h[,4]
+```
 
-# Eval CG -----
-cat("Eval CG\n")
-
+# Eval CG
+```{r}
 `%doChange%` = if(n_parallel>1) `%dopar%` else `%do%` #so I can just change variable without changing other code for single-threaded
 if(n_parallel>1) {
   if(file.exists(log_file)) file.remove(log_file)
-  cl <- makeCluster(n_parallel, outfile=log_file)
-  #cl <- makeCluster(n_parallel)
+  #cl <- makeCluster(n_parallel, outfile=log_file)
+  cl <- makeCluster(n_parallel)
   registerDoSNOW(cl)
 }
 
@@ -245,9 +266,11 @@ close(pb)
 cat(paste("Total time: ",format(as.numeric(td))," ", attr(td,"units"),"\n"))
 
 if(n_parallel>1) stopCluster(cl)
+```
 
+# Collect results
 
-# Collect results ----
+```{r}
 
 cg_a_fit_models = list()
 cg_a_LassoCV_fit_models = list()
@@ -296,9 +319,11 @@ if(sum(n_errors)>0){
   cat("N errors")
   print(n_errors)
 }
+```
 
-
-if(F){ #Output raw results
+Potentially save raw results to file
+```{r}
+if(F){
   save(S, Ns, D, data1, data2, 
        ct_h_fit_models, ct_a_fit_models, 
        cg_a_fit_models, cg_a_LassoCV_fit_models, cg_a_RF_fit_models, cg_a_LassoCV_b_fit_models, cg_a_RF_b_fit_models,
@@ -311,10 +336,11 @@ if(F){
   ct_a_nl = results_ct_a[,4]
   ct_h_nl = results_ct_h[,4]
 }
+```
 
-# Output Results ------
+# Output Results
 
-
+```{r}
 sum_res = function(full_res) {
   nl = matrix(0, nrow=D, ncol=NN)
   mse = matrix(0, nrow=D, ncol=NN)
@@ -342,7 +368,9 @@ list[nl_CG_a_am, mse_CG_a_am, pct_good_CG_a_am] = sum_res(results_cg_a_am)
 list[nl_CG_a_LassoCV_b_hm, mse_CG_a_LassoCV_b_hm, pct_good_CG_a_LassoCV_b_hm] = sum_res(results_cg_a_LassoCV_b_hm)
 list[nl_CG_a_RF_b_hm, mse_CG_a_RF_b_hm, pct_good_CG_a_RF_b_hm] = sum_res(results_cg_a_RF_b_hm)
 
+```
 
+```{r}
 flatten_table <- function(mat) {
   new_mat = matrix(as.vector(t(mat)), nrow=1)
   colnames(new_mat) = rep(c("N=500", "N=1000"), D)
@@ -359,27 +387,41 @@ compose_table <- function(mat_CT_h, mat_CT_a, mat_CG_a_am, mat_CG_a, mat_CG_a_La
   rownames(new_mat) = est_names
   new_mat
 }
+```
 
+```{r}
+n_cells_comp <- compose_table(nl_CT_h, nl_CT_a, nl_CG_a_am, nl_CG_a, nl_CG_a_LassoCV, nl_CG_a_RF, nl_CG_a_LassoCV_b, nl_CG_a_RF_b, nl_CG_a_LassoCV_b_hm, nl_CG_a_RF_b_hm)
+mse_comp <- compose_table(mse_CT_h, mse_CT_a, mse_CG_a_am, mse_CG_a, mse_CG_a_LassoCV, mse_CG_a_RF, mse_CG_a_LassoCV_b, mse_CG_a_RF_b, mse_CG_a_LassoCV_b_hm, mse_CG_a_RF_b_hm)
+ratio_good_comp <- compose_table(
+  pct_good_CT_h, pct_good_CT_a, pct_good_CG_a_am, pct_good_CG_a, pct_good_CG_a_LassoCV, pct_good_CG_a_RF,
+  pct_good_CG_a_LassoCV_b, pct_good_CG_a_RF_b, pct_good_CG_a_LassoCV_b_hm, pct_good_CG_a_RF_b_hm
+)
+print("n_cells_comp")
+print(n_cells_comp)
+print("mse_comp")
+print(mse_comp)
+print("ratio_good_comp")
+print(ratio_good_comp)
+```
+
+Write out tex tables 
+```{r}
 fmt_table <- function(xtbl, o_fname) {
   capt_ret <- capture.output(file_cont <- print(xtbl, floating=F, comment = F))
   file_cont = paste0(str_sub(file_cont, end=29-D*2), paste0(paste0("&\\multicolumn{2}{c}{Design ", 1:D, "}", collapse=""),"\\\\ \n"), str_sub(file_cont, start=26-D*2))
   cat(file_cont, file=o_fname)
 }
 
-n_cells_comp = compose_table(nl_CT_h, nl_CT_a, nl_CG_a_am, nl_CG_a, nl_CG_a_LassoCV, nl_CG_a_RF,
-                             nl_CG_a_LassoCV_b, nl_CG_a_RF_b, nl_CG_a_LassoCV_b_hm, nl_CG_a_RF_b_hm)
-mse_comp = compose_table(mse_CT_h, mse_CT_a, mse_CG_a_am, mse_CG_a, mse_CG_a_LassoCV, mse_CG_a_RF,
-                         mse_CG_a_LassoCV_b, mse_CG_a_RF_b,mse_CG_a_LassoCV_b_hm, mse_CG_a_RF_b_hm)
-ratio_good_comp = compose_table(pct_good_CT_h, pct_good_CT_a, pct_good_CG_a_am, pct_good_CG_a, pct_good_CG_a_LassoCV, pct_good_CG_a_RF,
-                                pct_good_CG_a_LassoCV_b, pct_good_CG_a_RF_b,pct_good_CG_a_LassoCV_b_hm, pct_good_CG_a_RF_b_hm)
-
 if(T){ #Output tables
   fmt_table(xtable(n_cells_comp, digits=2), paste0(tbl_export_path, "n_cells",suffix,".tex"))
   fmt_table(xtable(mse_comp, digits=3), paste0(tbl_export_path, "mse",suffix,".tex"))
   fmt_table(xtable(ratio_good_comp), paste0(tbl_export_path, "ratio_good",suffix,".tex"))
 }
+```
 
-# Output examples ------------
+# Output examples
+
+```{r}
 ct_sim_plot <- function(d, N_i, s, honest=TRUE) {
   iter = get_iter(d, N_i, s)
   list[y, X, w, tau] = data1[[iter]]
@@ -408,7 +450,9 @@ ct_cg_plot <- function(d, N_i, s, ct_honest=TRUE, cg_lasso=FALSE) {
   cg_plt = cg_sim_plot(d, N_i, s, lasso=cg_lasso)
   grid.arrange(ct_plt + ggtitle("Causal Tree"), cg_plt + ggtitle("Causal Grid"), ncol=2)
 }
+```
 
+```{r}
 if(F) {
   #Pick which one to show. 
   ct_a_nl = results_ct_a[,4]
@@ -445,7 +489,9 @@ if(F) {
   grph_pick
   ct_cg_plot(2, 1, 57, ct_honest=TRUE, cg_lasso=TRUE)
 }
+```
 
+```{r}
 cg_table <- function(obj, digits=3){
   stats = obj$cell_stats$stats[c("param_est")]
   colnames(stats) <- c("Est.")
@@ -457,7 +503,9 @@ ggplot_to_pdf <-function(plt_obj, filename) {
   print(plt_obj)
   dev.off()
 }
+```
 
+```{r}
 if(F){
   d=2 #so we can hve a 2d model
   N_i=1
@@ -488,4 +536,5 @@ if(F){
   grid.arrange(ct_plt + ggtitle("Causal Tree"), cg_plt + ggtitle("Causal Grid"), ncol=2)
   dev.off()
 }
+```
 

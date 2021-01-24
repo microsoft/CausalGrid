@@ -11,11 +11,13 @@
 
 \item{new_X}{new X}
 
-\item{new_d}{new d}
+\item{new_d}{new d. Required for type="outcome"}
+
+\item{type}{"effect" or "outcome" (currently not implemented)}
 }
 \value{
 predicted treatment effect
 }
 \description{
-Predicted unit-level treatment effect
+Predicted unit-level treatment effect or outcome
 }

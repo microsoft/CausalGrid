@@ -166,9 +166,9 @@ is_sep_estimators <- function(m_mode) {
   return(m_mode==DS.MULTI_SAMPLE || m_mode==DS.MULTI_Y)
 }
 
-min_sum <- function(data, M_mult) {
+sum_m <- function(data, M_mult) {
   if(!M_mult) return(sum(data))
-  return(min(sapply(data, sum)))
+  return(sapply(data, sum))
 }
 
 ensure_good_X <- function(X) {
@@ -453,15 +453,16 @@ apply_mask_m <- function(data, mask, M_mult) {
   if(!M_mult) return(row_sample(data, mask))
   return(mapply(function(data_s, mask_s) row_sample(data_s, mask_s), data, mask, SIMPLIFY=FALSE))
 }
-any_const_m <- function(d, shifted, shifted_cell_factor_nk, m_mode) {
+
+any_const_m <- function(d_shifted, shifted, shifted_cell_factor_nk, m_mode) {
   if(m_mode==DS.SINGLE || m_mode==DS.MULTI_Y)
-    return(any(by(d[shifted], shifted_cell_factor_nk, FUN=const_vect)))
+    return(any(by(d_shifted, shifted_cell_factor_nk, FUN=const_vect)))
   if(m_mode==DS.MULTI_SAMPLE)
-    return( any(mapply(function(d_s, shifted_s, shifted_cell_factor_nk_s)
-      any(by(d_s[shifted_s], shifted_cell_factor_nk_s, FUN=const_vect))
-      , d, shifted, shifted_cell_factor_nk ))  )
+    return( any(mapply(function(d_shifted_s, shifted_cell_factor_nk_s)
+      any(by(d_shifted_s, shifted_cell_factor_nk_s, FUN=const_vect))
+      , d_shifted, shifted_cell_factor_nk ))  )
   #m_mode==DS.MULTI_D
-  return( any(apply(d, 2, function(d_s)  any(by(d_s[shifted], shifted_cell_factor_nk, FUN=const_vect)) ))  )
+  return( any(apply(d_shifted, 2, function(d_shifted_s)  any(by(d_shifted_s, shifted_cell_factor_nk, FUN=const_vect)) ))  )
 }
 gen_cat_window_mask_m <- function(X, k, window) {
   if(is.null(X)) return(NULL)

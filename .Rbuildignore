@@ -9,3 +9,5 @@
 ^tests/sim.RData$
 ^\.lintr$
 ^dev_notes\.md
+^doc$
+^Meta$

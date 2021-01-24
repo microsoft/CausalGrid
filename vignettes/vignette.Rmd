@@ -1,8 +1,10 @@
 ---
 title: "High-Level Analysis"
-output: rmarkdown::html_vignette
+output: 
+  rmarkdown::html_vignette:
+    df_print: kable
 vignette: >
-  %\VignetteIndexEntry{vignette}
+  %\VignetteIndexEntry{High-Level Analysis}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -14,8 +16,9 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r setup}
+```{r setup, message=FALSE}
 library(CausalGrid)
+library(gridExtra)
 ```
 
 Some common parameters
@@ -36,10 +39,12 @@ tau = as.integer(X[,1]>.5)*2-1 #true treatment effect (just heterogeneous across
 y = d*tau + rnorm(N, 0, err_sd) #outcome
 ```
 
-To save time and avoid cells with too few observations, we only look for a few splits per dimension. This will split at points equal across the quantile-distribution.
+We typically want a high-level partition for "human" consumption. To save time, avoid cells with too few observations, and reduce the chance of splitting from running many noisy tests, it's common to only look for a few splits per dimension. If we don't specify this, the function will try every possible split across each dimension.
 ```{r}
-nbreaks = 5
-breaks = rep(list(seq(nbreaks)/(nbreaks+1)), K)
+# With just a scalar, we will split at points equal across the quantile-distribution for each feature.
+breaks = 5 
+#Otherwise we can explicitly list the potential splits to evaluate.
+breaks = rep(list(seq(breaks)/(breaks+1)), K)
 est_part = fit_estimate_partition(y, X, d, breaks_per_dim=breaks, cv_folds=2)
 ```
 
@@ -48,24 +53,19 @@ plot(est_part)
 ```
 
 ```{r}
-print(est_part)
+get_desc_df.estimated_partition(est_part)
 ```
 
-In small-sample, even CV-picked complexity may choose a partition that includes final splits that only provide marginal improvements.
+We can manually estimate this simple model given the partition
+```{r}
+est_df = data.frame(y=y, d=d, f=predict(est_part$partition, X))
+summary(lm(y~0+f+d:f, data=est_df[-est_part$index_tr,]))
+```
+
+Sometimes we want a different level of complexity than that picked by CV. Either we can pre-specify which partition in the sequence that we want (using the `partition_i` parameter), or we can look at the sequence of objective function values and see where additional splits only provide marginal improvements.
 
 ```{r}
-print(paste("CV picked partition index: ", est_part$partition_i))
 print(paste("In-sample Objective function values: ", paste(est_part$is_obj_val_seq, collapse=" ")))
-```
-Let's re-do this but just get the second in the sequence. (An alternative, and generally good practice, is to specify `min_size` # of observations for each cell)
-```{r}
-est_part = fit_estimate_partition(y, X, d, breaks_per_dim=5, importance_type="interaction", partition_i=2)
-```
-
-
-Show the partition
-```{r}
-print(est_part)
 ```
 
 Compare this with the average treatment effect for the whole and estimation-only samples
@@ -101,14 +101,13 @@ Now let's look at a case where there's hereogeneity across all three dimensions.
 tau_3 = (as.integer(X[,1]>0.5)*2-1) + (as.integer(X[,2]>0.5)*2-1)*2 + (as.integer(X[,3]>0.5)*2-1)*3
 y_3 = d*tau_3 + rnorm(N, 0, err_sd)
 est_part_3 = fit_estimate_partition(y_3, X, d, breaks_per_dim=5, partition_i=4)
-print(est_part_3)
+get_desc_df.estimated_partition(est_part_3)
 ```
 
 One benefit of grid-based partitions is that you can view easily view 2D slices of full heterogeneity space.
 ```{r fig.height=3, fig.width=6}
-plts = plot(est_part_3, c("X1", "X2"))
+plts = plot(est_part_3)
 
-suppressPackageStartupMessages(library(gridExtra))
 grid.arrange(plts[[1]], plts[[2]], ncol=2)
 ```
 
@@ -116,7 +115,7 @@ grid.arrange(plts[[1]], plts[[2]], ncol=2)
 # Improving the partition
 We can improve the partition by controlling for X's (either local-linearly or global-flexibly) and using bootstrap "bumping"
 ```{r}
-est_part = fit_estimate_partition(y, X, d, breaks_per_dim=5, ctrl_method = "LassoCV", bump_samples = 20, partition_i=2)
+est_part_l = fit_estimate_partition(y, X, d, breaks_per_dim=5, ctrl_method = "LassoCV", bump_samples = 20, partition_i=2)
 ```
 `LassoCV` is a local-linear approach and we can use the global-flexible approach by setting `ctrl_method="RF"` for a random forest.
 
@@ -138,7 +137,7 @@ tau2 = as.integer(X[,2]>0.5)*2-1
 y2_yM = d*tau2 + rnorm(N, 0, err_sd)
 y_yM = cbind(y, y2_yM)
 est_part_yM = fit_estimate_partition(y_yM, X, d, breaks_per_dim=5, partition_i = 3)
-print(est_part_yM)
+get_desc_df.estimated_partition(est_part_yM)
 ```
 
 2) Multiple treatments, but same sample (single outcome)
@@ -147,7 +146,7 @@ d2 = rbinom(N, 1, 0.5)
 d_dM = cbind(d, d2)
 y_dM =  d*tau + d2*tau2 + rnorm(N, 0, err_sd)
 est_part_dM = fit_estimate_partition(y_dM, X, d_dM, breaks_per_dim=5, partition_i = 3)
-print(est_part_dM)
+get_desc_df.estimated_partition(est_part_dM)
 ```
 
 3) Multiple separate samples, each having a single outcome and treatment
@@ -157,14 +156,14 @@ y_MM = list(y, y2_MM)
 d_MM = list(d, d2)
 X_MM = list(X, X)
 est_part_MM = fit_estimate_partition(y_MM, X_MM, d_MM, breaks_per_dim=5, partition_i = 3)
-print(est_part_MM)
+get_desc_df.estimated_partition(est_part_MM)
 ```
 # Mean-outcome prediction
 ```{r}
 alpha = as.integer(X[,1]>0.5)*2-1 #true average outcome effect (just heterogeneous across X1)
 y_y = alpha + rnorm(N, 0, err_sd) #outcome
 est_part_y = fit_estimate_partition(y_y, X, breaks_per_dim=5, partition_i=2)
-print(est_part_y)
+get_desc_df.estimated_partition(est_part_y)
 ```
 
 # Minor things to add

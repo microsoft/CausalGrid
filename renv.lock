@@ -256,13 +256,6 @@
       "Repository": "CRAN",
       "Hash": "496dd262e1ec64e452151479a74c972f"
     },
-    "doParallel": {
-      "Package": "doParallel",
-      "Version": "1.0.14",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "3335c17fb0a900813001058f1ce35fc4"
-    },
     "doSNOW": {
       "Package": "doSNOW",
       "Version": "1.0.19",

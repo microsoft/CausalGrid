@@ -61,8 +61,13 @@ plot.estimated_partition <- function(grid_fit, X_names_2D=NULL) {
   for(slice_i in 1:size_other) {
     segment_indexes = segment_indexes_from_cell_i(slice_i, n_segs_other)
     row_idx = test_row_equals_vec(desc_range_df_fact[,other_idx,drop=FALSE], segment_indexes)
+    #levels_desc = segment_indexes
+    levels_desc = c()
+    for(k in 1:length(segment_indexes)){
+      levels_desc[k] = levels(desc_range_df_fact[,which(other_idx)[k]])[segment_indexes[k]]
+    }
     plts[[slice_i]] = gen_one_plt(desc_range_df[row_idx,X_names_2D], grid_fit$cell_stats$param_ests[row_idx], X_names_2D) +
-      ggtitle(paste(paste(names_other, "= level", segment_indexes), collapse=", "))
+      ggtitle(paste(paste(names_other, levels_desc), collapse=", "))
   }
   
   return(plts)

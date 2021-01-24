@@ -18,7 +18,7 @@ estimated_partition <- function(partition, cell_stats, ...) {
                    class=c("estimated_partition")))
 }
 
-# Inherited params: bump_ratio, max_splits, max_cells, bucket_min_n, bucket_min_d_var, breaks_per_dim, verbosity, partition_i
+# Inherited params: bump_ratio, max_splits, max_cells, bucket_min_n, bucket_min_d_var, split_check_fn, breaks_per_dim, verbosity, partition_i
 #           y, X, d, min_size
 # Params expanded here: bump_samples, pr_cl, cv_folds
 # Hidden params:
@@ -73,7 +73,7 @@ estimated_partition <- function(partition, cell_stats, ...) {
 fit_estimate_partition <- function(y, X, d=NULL, tr_split = 0.5, max_splits=Inf, max_cells=Inf, min_size=3, 
                                    cv_folds=5, potential_lambdas=NULL, partition_i=NA,
                                    verbosity=0, breaks_per_dim=NULL, 
-                                   bucket_min_n=NA, bucket_min_d_var=FALSE,
+                                   bucket_min_n=NA, bucket_min_d_var=FALSE, 
                                    ctrl_method="", pr_cl=NULL, alpha=0.05, bump_samples=0, bump_ratio=1,
                                    importance_type="", ...) {
   extra_params = list(...)
@@ -124,31 +124,26 @@ fit_estimate_partition <- function(y, X, d=NULL, tr_split = 0.5, max_splits=Inf,
   
   X_range = get_X_range(X)
   t0 = Sys.time()
-  main_ret = do.call(fit_estimate_partition_int, c(list(X=X, y=y, d=d, X_tr=X_tr, y_tr=y_tr, d_tr=d_tr, y_es=y_es, X_es=X_es, d_es=d_es, 
-                                        X_range=X_range, max_splits=max_splits, max_cells=max_cells, min_size=min_size, 
-                                        cv_folds=cv_folds, potential_lambdas=potential_lambdas, 
-                                        partition_i=partition_i, verbosity=verbosity, breaks_per_dim=breaks_per_dim, 
-                                        bucket_min_n=bucket_min_n, bucket_min_d_var=bucket_min_d_var, honest=honest, 
-                                        pr_cl=pr_cl, alpha=alpha, bump_samples=bump_samples, bump_ratio=bump_ratio, M=M, m_mode=m_mode, 
-                                        dim_cat=dim_cat, est_plan=est_plan, N_est=N_est), extra_params))
+  main_params = list(X=X, y=y, d=d, X_tr=X_tr, y_tr=y_tr, d_tr=d_tr, y_es=y_es, X_es=X_es, d_es=d_es,
+                     X_range=X_range, max_splits=max_splits, max_cells=max_cells, min_size=min_size, 
+                     cv_folds=cv_folds, potential_lambdas=potential_lambdas, partition_i=partition_i, 
+                     verbosity=verbosity, breaks_per_dim=breaks_per_dim,  bucket_min_n=bucket_min_n, 
+                     bucket_min_d_var=bucket_min_d_var, honest=honest,
+                     alpha=alpha, bump_samples=bump_samples, pr_cl=pr_cl, 
+                     bump_ratio=bump_ratio, M=M, m_mode=m_mode,
+                     dim_cat=dim_cat, N_est=N_est, est_plan=est_plan)
+  main_ret = do.call(fit_estimate_partition_int, c(main_params, extra_params))
   list[partition, is_obj_val_seq, complexity_seq, partition_i, partition_seq, split_seq, lambda, cv_foldid, cell_stats, full_stat_df, est_plan] = main_ret
   
   importance_weights <- interaction_weights <- NULL
   if(importance_type=="interaction") {
-    import_ret = do.call(get_feature_interactions, c(list(X=X, y=y, d=d, X_tr=X_tr, y_tr=y_tr, d_tr=d_tr, y_es=y_es, X_es=X_es, d_es=d_es, X_range=X_range,
-                                          breaks_per_dim=breaks_per_dim, partition=partition, est_plan=est_plan, verbosity=verbosity, pr_cl=pr_cl, 
-                                          max_splits=max_splits, max_cells=max_cells, min_size=min_size, cv_folds=cv_folds, potential_lambdas=potential_lambdas, partition_i=partition_i, 
-                                          bucket_min_n=bucket_min_n, bucket_min_d_var=bucket_min_d_var, honest=honest, alpha=alpha, bump_samples=bump_samples, 
-                                          bump_ratio=bump_ratio, M=M, m_mode=m_mode, dim_cat=dim_cat, N_est=N_est), extra_params))
+    import_ret = do.call(get_feature_interactions, c(main_params, list(partition=partition), extra_params))
     importance_weights = import_ret$delta_k
     interaction_weights = import_ret$delta_k12
   }
   else if(importance_type %in% c("single", "fast")) {
-    importance_weights = do.call(get_importance_weights, c(list(X=X, y=y, d=d, X_tr=X_tr, y_tr=y_tr, d_tr=d_tr, y_es=y_es, X_es=X_es, d_es=d_es, X_range=X_range,
-                                                breaks_per_dim=breaks_per_dim, partition=partition, est_plan=est_plan, type=importance_type, verbosity=verbosity, pr_cl=pr_cl, 
-                                                max_splits=max_splits, max_cells=max_cells, min_size=min_size, cv_folds=cv_folds, potential_lambdas=potential_lambdas, partition_i=partition_i, 
-                                                bucket_min_n=bucket_min_n, bucket_min_d_var=bucket_min_d_var, honest=honest, alpha=alpha, bump_samples=bump_samples, 
-                                                bump_ratio=bump_ratio, M=M, m_mode=m_mode, dim_cat=dim_cat, N_est=N_est), extra_params))
+    importance_weights = do.call(get_importance_weights, c(main_params, list(partition=partition, type=importance_type), 
+                                                           extra_params))
   }
   
   tn = Sys.time()
@@ -273,10 +268,6 @@ print.estimated_partition <- function(x, do_str=TRUE, drop_unsplit=TRUE, digits=
                digits=digits, ...))
 }
 
-#predict.estimated_partition <- function(object, X, d=NULL, type="response") {
-# TDDO: Have to store y_hat as well as tau_hat 
-#}
-
 #libs required and suggested. Use if sourcing directly. 
 #lapply(lib_list, require, character.only = TRUE)
 #CausalGrid_libs <- function(required=TRUE, suggested=TRUE, load_Rcpp=FALSE) {
@@ -364,7 +355,7 @@ est_cell_stats <- function(y, X, d=NULL, partition=NULL, cell_factor=NULL, estim
     else est_plan = simple_est(NULL, estimator_var)
   }
   if(is.null(cell_factor)) {
-    cell_factor = get_factor_from_partition(partition, X)
+    cell_factor = predict(partition, X)
   }
   list[lvls, n_cells] = lcl_levels(cell_factor)
   param_ests = matrix(NA, nrow=n_cells, ncol=M)
@@ -433,22 +424,22 @@ est_full_stats <- function(y, X, d, est_plan, y_es=NULL, X_es=NULL, d_es=NULL, i
 
 #' Generate predicted estimates per observations
 #' 
-#' Predicted unit-level treatment effect
+#' Predicted unit-level treatment effect or outcome
 #'
 #' @param obj estimated_partition object
 #' @param new_X new X
-#' @param new_d new d
+#' @param new_d new d. Required for type="outcome"
+#' @param type "effect" or "outcome" (currently not implemented)
 #'
 #' @return predicted treatment effect
 #' @export
 predict.estimated_partition <- function(obj, new_X, new_d=NULL, type="effect") {
   #TODO: for mode 1 &2 maybe return a matrix rather than list
-  #type="effect"
-  #
+  
   new_X = ensure_good_X(new_X)
   new_X_range = get_X_range(new_X)
   
-  cell_factor = get_factor_from_partition(obj$partition, new_X, new_X_range)
+  cell_factor = predict(obj$partition, new_X, new_X_range)
   M = obj$M
   
   if(M==1) {
@@ -502,8 +493,8 @@ eval_mse_hat <-function(y_tr, X_tr, d_tr, y_te=NULL, X_te=NULL, d_te=NULL, N_est
   }
   
   if(is.null(cell_factor_tr)) {
-    cell_factor_tr = get_factor_from_partition(partition, X_tr)
-    if(incl_te) cell_factor_te = get_factor_from_partition(partition, X_te)
+    cell_factor_tr = predict(partition, X_tr)
+    if(incl_te) cell_factor_te = predict(partition, X_te)
   }
   list[M, m_mode, N_tr, K] = get_sample_type(y_tr, X_tr, d_tr, checks=FALSE)
   if(incl_te) list[M, m_mode, N_te, K] = get_sample_type(y_te, X_te, d_te, checks=FALSE)
@@ -571,7 +562,7 @@ eval_mse_hat_tbl <- function(train_tbl, te_tbl=NULL, incl_base_te=TRUE) {
 #     else est_plan = simple_est(estimator_var, estimator_var)
 #   }
 #   if(is.null(cell_factor)) {
-#     cell_factor = get_factor_from_partition(partition, X)
+#     cell_factor = predict(partition, X)
 #   }
 #   if(!is.null(alpha)) {
 #     stopifnot(alpha>=0 & alpha<=1)
