@@ -5,6 +5,8 @@ This package is inspired by, and uses ideas from, [Causal Tree](https://github.c
 
 This project is currently in an advanced prototype stage. Issues may still be found in common usage. Please create issues for these!
 
+Documentation can be found online [here](https://microsoft.github.io/CausalGrid/index.html) (and in the package).
+
 ## Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
