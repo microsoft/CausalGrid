@@ -7,11 +7,11 @@
 \method{predict}{grid_partition}(obj, X, X_range = NULL)
 }
 \arguments{
+\item{obj}{partition}
+
 \item{X}{X data or list of X}
 
 \item{X_range}{(Optional) overrides the partition$X_range}
-
-\item{partition}{partition}
 }
 \value{
 Factor

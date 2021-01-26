@@ -11,3 +11,6 @@
 ^dev_notes\.md
 ^doc$
 ^Meta$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$

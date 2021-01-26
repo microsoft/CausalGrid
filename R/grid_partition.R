@@ -93,7 +93,7 @@ get_X_range <- function(X) {
 #' Note that currently if X has values more extreme (e.g., for numeric or factor levels ) than was used to generate the partition
 #' then we will return NA unless you provide and updated X_range.
 #'
-#' @param partition partition
+#' @param obj partition
 #' @param X X data or list of X
 #' @param X_range (Optional) overrides the partition$X_range
 #'
