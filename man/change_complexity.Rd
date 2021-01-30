@@ -27,6 +27,10 @@ should be normalized to have the same variance. With multiple core estimates see
 
 \item{partition_i}{partition_i - 1 is the last include in split_seq included in new partition}
 
+\item{index_tr}{Split between train and estimate samples (default is to get from \code{fit})}
+
+\item{split_seq}{sequential list of splits (default is to get from \code{fit})}
+
 \item{est_plan}{\link{EstimatorPlan}.}
 }
 \value{

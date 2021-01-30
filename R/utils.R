@@ -15,6 +15,29 @@ num_cells <- function(obj) {
   UseMethod("num_cells", obj)
 } 
 
+#' Get descriptive data.frame
+#'
+#' Get information for each cell
+#'
+#' @param obj partition object
+#' @param cont_bounds_inf Should "Inf" be used for continuous bounds (otherwise
+#'   the bounds from X_range)
+#' @param do_str If True, use a string like "(a, b]", otherwise have two
+#'   separate columns with a and b
+#' @param drop_unsplit If True, drop columns for variables overwhich the
+#'   partition did not split
+#' @param digits digits Option (default is NULL)
+#' @param unsplit_cat_star Should unsplit categorical variables be listed as
+#'   "*", otherwise all factor labels will be used.
+#' @param ... Additional arguments.
+#'
+#' @return data.frame with columns: partitioning columns
+#' @export
+get_desc_df <- function(obj, cont_bounds_inf=TRUE, do_str=FALSE, drop_unsplit=FALSE, 
+                        digits=NULL, unsplit_cat_star=TRUE, ...) {
+  UseMethod("get_desc_df", obj)
+} 
+
 # General Utils ----------------
 
 #handles vectors and 2D structures
@@ -69,17 +92,17 @@ is_factor_dim_k <- function(X, k) {
 }
 
 
-#Standard way to check if vector is constant is const_vectr(), but is O(n).
-#Checking element-by-element would often be faster, but this is inefficient in R
-#and faster in C. const_vect1() and const_vect2() were two versions (first using
-#'inline', second just Rcpp), but couldn't get to work in building a package.
-#The Rcpp version is now in a separate file.
+# Standard way to check if vector is constant is const_vectr(), but is O(n).
+# Checking element-by-element would often be faster, but this is inefficient in R
+# and faster in C. const_vect1() and const_vect2() were two versions (first using
+# 'inline', second just Rcpp), but couldn't get to work in building a package.
+# The Rcpp version is now in a separate file.
 
-const_vectr <- function(x) {
-  if(length(x)==0) return(TRUE)
-  r = range(x)
-  return(r[1]==r[2])
-}
+# const_vectr <- function(x) {
+#   if(length(x)==0) return(TRUE)
+#   r = range(x)
+#   return(r[1]==r[2])
+# }
 
 # Fold utils --------------------------
 

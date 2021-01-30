@@ -4,16 +4,18 @@
 \alias{predict.estimated_partition}
 \title{Generate predicted estimates per observations}
 \usage{
-\method{predict}{estimated_partition}(obj, new_X, new_d = NULL, type = "effect")
+\method{predict}{estimated_partition}(object, new_X, new_d = NULL, type = "effect", ...)
 }
 \arguments{
-\item{obj}{estimated_partition object}
+\item{object}{estimated_partition object}
 
 \item{new_X}{new X}
 
 \item{new_d}{new d. Required for type="outcome"}
 
 \item{type}{"effect" or "outcome" (currently not implemented)}
+
+\item{...}{Additional arguments. Unused.}
 }
 \value{
 predicted treatment effect

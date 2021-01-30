@@ -12,10 +12,10 @@
 NULL
 #> NULL
 
-#' Create a null grid_partition
+#' Create a null \code{grid_partition}
 #' 
 #' Create a empty partition. Splits can be added using \code{\link{add_partition_split}}.
-#' Information about a split can be retrieved using \code{\link{num_cells}}, \code{\link{get_desc_df.grid_partition}} and \code{\link{print}}
+#' Information about a split can be retrieved using \code{\link{num_cells}}, \code{\link{get_desc_df}} and \code{\link{print}}
 #' With data, one can determine the cell for each observation using \code{\link{predict}}
 #'
 #' @param X_range Such as from \code{\link{get_X_range}}
@@ -93,14 +93,15 @@ get_X_range <- function(X) {
 #' Note that currently if X has values more extreme (e.g., for numeric or factor levels ) than was used to generate the partition
 #' then we will return NA unless you provide and updated X_range.
 #'
-#' @param obj partition
+#' @param object partition
 #' @param X X data or list of X
 #' @param X_range (Optional) overrides the partition$X_range
+#' @param ... Additional arguments. Unused.
 #'
 #' @return Factor
 #' @export
-predict.grid_partition <- function(obj, X, X_range=NULL) {
-  facts = get_factors_from_partition(obj, X, X_range=X_range)
+predict.grid_partition <- function(object, X, X_range=NULL, ...) {
+  facts = get_factors_from_partition(object, X, X_range=X_range)
   return(interaction_m(facts, is_sep_sample(X)))
 }
 
@@ -126,31 +127,27 @@ num_cells.grid_partition <- function(obj) {
 print.grid_partition <- function(x, do_str=TRUE, drop_unsplit=TRUE, digits=NULL, ...) {
   #To check: digits
   assert_that(is.flag(do_str), is.flag(drop_unsplit), msg="One of do_str or drop_unsplit are not flags")
-  return(print(get_desc_df.grid_partition(x, do_str=do_str, drop_unsplit=drop_unsplit, digits=digits), 
+  return(print(get_desc_df(x, do_str=do_str, drop_unsplit=drop_unsplit, digits=digits), 
                digits=digits, ...))
 }
 
 
-#' Get descriptive data.frame for grid_partition
+#' Get descriptive data.frame
+#'
+#' Get information for each cell
+#'
+#' @inheritParams get_desc_df
 #' 
-#' A dataset with rows for each cell and columns defining partitioning
-#'
-#' @param partition Partition
-#' @param cont_bounds_inf If True, will put continuous bounds as -Inf/Inf. Otherwise will use X_range bounds
-#' @param do_str If True, use a string like "(a, b]", otherwise have two separate columns with a and b
-#' @param drop_unsplit If True, drop columns for variables overwhich the partition did not split
-#' @param digits digits option
-#' @param unsplit_cat_star if we don't split on a categorical var, should we show as "*" (otherwise list all levels)
-#'
-#' @return data.frame
+#' 
+#' @return data.frame with columns: partitioning columns
 #' @export
-get_desc_df.grid_partition <- function(partition, cont_bounds_inf=TRUE, do_str=FALSE, drop_unsplit=FALSE, 
-                                       digits=NULL, unsplit_cat_star=TRUE) {
+get_desc_df.grid_partition <- function(obj, cont_bounds_inf=TRUE, do_str=FALSE, drop_unsplit=FALSE, 
+                                       digits=NULL, unsplit_cat_star=TRUE, ...) {
   #To check: digits
   assert_that(is.flag(cont_bounds_inf), is.flag(do_str), is.flag(drop_unsplit), is.flag(unsplit_cat_star), msg="One (cont_bounds_inf, do_str, drop_unsplit, unsplit_cat_star)of are not flags.")
   # A split at x_k means that we split to those <= and >
   
-  n_segs = partition$nsplits_by_dim+1
+  n_segs = obj$nsplits_by_dim+1
   n_cells = prod(n_segs)
   
   if(n_cells==1 & drop_unsplit) return(as.data.frame(matrix(NA, nrow=1, ncol=0)))
@@ -160,19 +157,19 @@ get_desc_df.grid_partition <- function(partition, cont_bounds_inf=TRUE, do_str=F
   #desc_df = data.frame(labels=levels(grid_fit$cell_stats$cell_factor), 
   #                     stringsAsFactors = FALSE) %>% separate(labels, names(X), "(?<=]).(?=[(])", PERL=TRUE)
   
-  K = length(partition$nsplits_by_dim)
-  X_range = partition$X_range
+  K = length(obj$nsplits_by_dim)
+  X_range = obj$X_range
   if(cont_bounds_inf) {
     for(k in 1:K) {
-      if(!k %in% partition$dim_cat) X_range[[k]] = c(-Inf, Inf)
+      if(!k %in% obj$dim_cat) X_range[[k]] = c(-Inf, Inf)
     }
   }
-  colnames=partition$varnames
+  colnames=obj$varnames
   if(is.null(colnames)) colnames = paste("X", 1:K, sep="")
   
   list_of_windows = list()
   for(k in 1:K) {
-    list_of_windows[[k]] = if(k %in% partition$dim_cat) get_windows_cat(partition$s_by_dim[[k]], X_range[[k]]) else get_window_cont(partition$s_by_dim[[k]], X_range[[k]])
+    list_of_windows[[k]] = if(k %in% obj$dim_cat) get_windows_cat(obj$s_by_dim[[k]], X_range[[k]]) else get_window_cont(obj$s_by_dim[[k]], X_range[[k]])
   }
   
   format_cell_cat <- function(win, unsplit_cat_star, n_tot_dim, sep=", ") {
@@ -195,7 +192,7 @@ get_desc_df.grid_partition <- function(partition, cont_bounds_inf=TRUE, do_str=F
       segment_indexes = segment_indexes_from_cell_i(cell_i, n_segs)
       win = list_of_windows[[k]][[segment_indexes[k]]]
       raw_data_k[[cell_i]] = win
-      str_data_k[cell_i] = if(k %in% partition$dim_cat) format_cell_cat(win, unsplit_cat_star, length(list_of_windows[[k]])) else format_cell_cont(win)
+      str_data_k[cell_i] = if(k %in% obj$dim_cat) format_cell_cat(win, unsplit_cat_star, length(list_of_windows[[k]])) else format_cell_cont(win)
     }
     raw_data[[colnames[k]]] = cbind(raw_data_k) #make a list-column: https://stackoverflow.com/a/51308306
     str_data[[colnames[k]]] = factor(str_data_k, levels=unique(str_data_k)) #will be in low-high order
@@ -334,7 +331,7 @@ partition_split <- function(k, X_k_cut) {
   return(structure(list(k=k, X_k_cut=X_k_cut), class=c("partition_split")))
 } 
 
-#' Is grid_partition_split
+#' Is \code{partition_split}
 #' 
 #' Tests whether or not an object is a \code{partition_split}.
 #'
@@ -342,8 +339,8 @@ partition_split <- function(k, X_k_cut) {
 #'
 #' @return Boolean
 #' @export
-#' @describeIn grid_partition_split is grid_partition_split
-is_grid_partition_split <- function(x){ 
+#' @describeIn partition_split is partition_split
+is_partition_split <- function(x){ 
   inherits(x, "partition_split") 
 }
 
@@ -414,6 +411,7 @@ print.partition_split <- function(x, ...) {
 #' @param bump_samples Number of bump bootstraps (default 0), or list of such length where each items is a bootstrap sample.
 #'                     If m_mode==DS.MULTI_SAMPLE then each item is a sublist with such bootstrap samples over each dataset.
 #' @param bump_ratio For bootstraps the ratio of sample size to sample (between 0 and 1, default 1)
+#' @param ... Additional params.
 #'
 #' @return An object.
 #'         \item{partition}{Grid Partition (type=\code{\link{grid_partition}})}
@@ -863,7 +861,7 @@ fit_partition_full_k <- function(k, y, X_d, d, X_range, pb, debug, valid_breaks,
     win_mask = gen_cont_window_mask_m(X_d, k, win_LB, win_UB)
     win_mask_aux = gen_cont_window_mask_m(X_aux, k, win_LB, win_UB)
     for(X_k_cut_i in seq_len(n_pot_break_points_k)) { #cut-point is top end of segment, 
-      if (verbosity>0 && !is.null(pb)) utils::setTxtProgressBar(pb, utils::getTxtProgressBar(pb)+1)
+      if (verbosity>0 && !is.null(pb)) setTxtProgressBar(pb, getTxtProgressBar(pb)+1)
       X_k_cut = breaks_per_dim[[k]][X_k_cut_i]
       if(X_k_cut %in% partition$s_by_dim[[k]]) {
         prev_split_checked = X_k_cut
@@ -961,7 +959,7 @@ fit_partition_full_k <- function(k, y, X_d, d, X_range, pb, debug, valid_breaks,
       for(win_split_i in seq_len(length(pot_splits))) {
         win_split_val = pot_splits[[win_split_i]]
         #TODO: Refactor with continuous case
-        if (verbosity>0 && !is.null(pb)) utils::setTxtProgressBar(pb, utils::getTxtProgressBar(pb)+1)
+        if (verbosity>0 && !is.null(pb)) setTxtProgressBar(pb, getTxtProgressBar(pb)+1)
         if(!valid_breaks_k[[window_i]][win_split_i]) next
         
         new_split = partition_split(k, win_split_val)
@@ -1092,7 +1090,7 @@ fit_partition_full <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, X_range, ma
     if(verbosity>0) {
       cat(paste("Grid > Fitting > split ", split_i, ": Started\n"))
       t1 = Sys.time()
-      if(is.null(pr_cl)) pb = utils::txtProgressBar(0, n_cuts_total, style = style)
+      if(is.null(pr_cl)) pb = txtProgressBar(0, n_cuts_total, style = style)
     }
     
     params = c(list(y=y, X_d=X, d=d, X_range=X_range, pb=NULL, debug=debug, valid_breaks=valid_breaks, 

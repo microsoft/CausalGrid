@@ -4,12 +4,14 @@
 \alias{plot.estimated_partition}
 \title{Create 2D plots of parameter estimates}
 \usage{
-\method{plot}{estimated_partition}(grid_fit, X_names_2D = NULL)
+\method{plot}{estimated_partition}(x, X_names_2D = NULL, ...)
 }
 \arguments{
-\item{grid_fit}{grid_fit}
+\item{x}{grid_fit}
 
 \item{X_names_2D}{X_names_2D}
+
+\item{...}{Additional arguments. Unused.}
 }
 \value{
 ggplot2 object or list of such objects

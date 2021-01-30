@@ -93,6 +93,8 @@ single - (smart) redo full fitting removing each possible dimension
 interaction - (smart) redo full fitting removing each pair of dimensions
  "" - Nothing}
 
+\item{...}{Additional params.}
+
 \item{x}{an R object}
 }
 \value{

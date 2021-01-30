@@ -3,7 +3,7 @@
 \name{grid_partition}
 \alias{grid_partition}
 \alias{is_grid_partition}
-\title{Create a null grid_partition}
+\title{Create a null \code{grid_partition}}
 \usage{
 grid_partition(X_range, varnames = NULL)
 
@@ -23,7 +23,7 @@ True if x is a grid_partition
 }
 \description{
 Create a empty partition. Splits can be added using \code{\link{add_partition_split}}.
-Information about a split can be retrieved using \code{\link{num_cells}}, \code{\link{get_desc_df.grid_partition}} and \code{\link{print}}
+Information about a split can be retrieved using \code{\link{num_cells}}, \code{\link{get_desc_df}} and \code{\link{print}}
 With data, one can determine the cell for each observation using \code{\link{predict}}
 
 Test whether an object is an \code{grid_function}
