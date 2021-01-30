@@ -125,11 +125,15 @@ then we will return NA unless you provide and updated X_range.</p>
     </div>
 
     <pre class="usage"><span class='co'># S3 method for grid_partition</span>
-<span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>obj</span>, <span class='va'>X</span>, X_range <span class='op'>=</span> <span class='cn'>NULL</span><span class='op'>)</span></pre>
+<span class='fu'><a href='https://rdrr.io/r/stats/predict.html'>predict</a></span><span class='op'>(</span><span class='va'>object</span>, <span class='va'>X</span>, X_range <span class='op'>=</span> <span class='cn'>NULL</span>, <span class='va'>...</span><span class='op'>)</span></pre>
     
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
     <colgroup><col class="name" /><col class="desc" /></colgroup>
+    <tr>
+      <th>object</th>
+      <td><p>partition</p></td>
+    </tr>
     <tr>
       <th>X</th>
       <td><p>X data or list of X</p></td>
@@ -139,8 +143,8 @@ then we will return NA unless you provide and updated X_range.</p>
       <td><p>(Optional) overrides the partition$X_range</p></td>
     </tr>
     <tr>
-      <th>partition</th>
-      <td><p>partition</p></td>
+      <th>...</th>
+      <td><p>Additional arguments. Unused.</p></td>
     </tr>
     </table>
     

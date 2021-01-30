@@ -120,9 +120,10 @@
 <p>Notes on building:</p>
 <ul>
 <li>You will need RTools (probably at least v3.5)</li>
-<li>install (renv)[<a href="https://rstudio.github.io/renv/articles/renv.html" class="uri">https://rstudio.github.io/renv/articles/renv.html</a>] package. Then after opening the project you should be able to use <code><a href="https://rstudio.github.io/renv//reference/restore.html">renv::restore()</a></code>.</li>
-<li>Given the cpp you should use “Install and restart” (and not use “Load All”) to get the new library. On Windows, when building, you should restart the R session before this otherwise it can’t copy over the DLL (it stays in memory).</li>
-<li>If you want updated vignettes to show up when using “Load All”, you can use <code><a href="https://devtools.r-lib.org//reference/build_vignettes.html">devtools::build_vignettes()</a></code>.</li>
+<li>install (renv)[<a href="https://rstudio.github.io/renv/articles/renv.html" class="uri">https://rstudio.github.io/renv/articles/renv.html</a>] package. Then after opening the project you should be able to use <code><a href="https://rstudio.github.io/renv//reference/restore.html">renv::restore()</a></code>. Some packages (such as <code>brio, cpp11, knitr, ragg, systemfonts, textshaping</code>) aren’t mentioned directly, but are used in building vignettes.</li>
+<li>Given the cpp you should use “Install and restart” (and not use “Load All”) to get the new library (though you might be able to get away w/o it if you don’t change the DLL). On Windows, when building, you should restart the R session before this otherwise it can’t copy over the DLL (it stays in memory).</li>
+<li>If you want updated vignettes to show up when using “Load All”, you can use <code><a href="https://devtools.r-lib.org//reference/build_vignettes.html">devtools::build_vignettes()</a></code> (possibly with <code>install=FALSE</code> to speed things up). They will get placed in <code>doc/</code> (not <code>docs</code>).</li>
+<li>To build the html help in <code>docs/</code> use <code><a href="https://pkgdown.r-lib.org/reference/build_site.html">pkgdown::build_site()</a></code>.</li>
 <li>Building copies everything over to temp dir and then deletes, so might want to move the large files (<code>project/sim.RData</code>) out to save time.</li>
 </ul>
 </div>
