@@ -16,3 +16,4 @@ list of length K with each element being the "range" along that dimension
 Gets the "range" of each variable in X. For numeric variables this is (min, max).
 For factors this means vector of levels.
 }
+\keyword{internal}

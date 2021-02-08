@@ -1,0 +1,203 @@
+---
+title: "Tutorial: Beginner"
+author: "Brian Quistorff"
+date: "`r Sys.Date()`"
+output: 
+  rmarkdown::html_vignette:
+    df_print: kable
+vignette: >
+  %\VignetteIndexEntry{Tutorial: Beginner}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  dev = "ragg_png"
+)
+set.seed(1337)
+```
+
+When estimating the treatment effect `$\tau$` of some variable `D` on some outcome `Y` (e.g., when analyzing an experiment), we may want to know if different subgroups of sample (defined by different values of characteristics `X`) respond differently. `CausalGrid` automatically partitions the feature/characteristic space `X` to find subgroups with differing treatment effects. The aim is to provide a high-level partition, where the average effect is shown for each subgroup, for humans to reason about (not necessarily about creating the most accurate predictor of `$\tau(x)$`).
+
+```{r, message=FALSE}
+library(CausalGrid)
+library(gridExtra)
+```
+
+# Partitioning
+While there are many ways to partition a space, `CausalGrid` focuses on grid style partitions to make them easy to use. Partitions generated from recursive splits by tree algorithms can be quite hard to use in practice. First, splits are defined along various dimensions of `X`. For example, with 1 feature going from 0 to 1 it may split at values `c1`, `c2`, resulting in segments `[0,c1], (c1, c2], (c2,1]`. A split at value `c` means it splits <= and >. The segments may be of uneven sizes. Splits along several features result in a grid by constructing the Cartesian product of the feature-specific splits. Not all features will necessarily be split or split the same number of times. Let's see an example.
+
+Make some fake data
+```{r}
+N = 1000 # Number of units
+K = 3 # Number of features per unit
+err_sd = 1 # Noisiness
+
+X = matrix(runif(N*K), ncol=K) #Features for splitting partition
+#colnames(X) = paste("X", 1:K, sep="")
+d = rbinom(N, 1, 0.5) #treatment assignment
+tau = as.integer(X[,1]>.5)*2-1 #true treatment effect (just heterogeneous across X1)
+y = d*tau + rnorm(N, 0, err_sd) #outcome
+```
+
+First let's look at the average treatment-effect
+```{r}
+summary(lm(y~d))
+```
+
+
+We can manually define a partition, "predict" which cell each observation would be in, and get a descriptive `data.frame` of its boundaries. 
+
+```{r}
+splits = list(partition_split(k=1, X_k_cut=0.4), partition_split(k=1, X_k_cut=0.5))
+my_part = partition_from_split_seq(splits, X=X)
+X_cell_ids = predict(my_part, new_X=X)
+get_desc_df(my_part)
+```
+
+To look at subgroup heterogeneity of a treatment effect, one may have a good prior about the partition (what dimensions of `X` to look across and what cut-values to use). One can do this either with the generated cell ids or with a built-in function.
+
+
+```{r}
+lm_fit = lm(y~0+X_cell_ids+d:X_cell_ids)
+print(summary(lm_fit))
+```
+
+```{r}
+cell_stats = est_cell_stats(y, X, d, partition=my_part)
+cell_stats
+```
+
+An `estimated_partition` is a partition with associated parameter estimates for each cell.
+
+```{r}
+my_est_part = estimated_partition(partition=my_part, cell_stats=cell_stats)
+my_est_part
+```
+
+
+# Automatically determining the partition
+Exactly determining the partition may be hard, especially since in practice we do not determine the true `$\tau$` (only `$Y,D,X$`). Maybe you have a good prior of which variables are important, but you're not exactly sure of the cut-values. Maybe you also don't know which variables will be important. In these cases, automating some of the partitioning process would be helpful.
+
+The challenge is two-fold: There are too many potential partitions to check them all, and we want to focus on out-of-sample performance rather than in-sample (which will be more extreme). For both of this issues we take inspiration from [Causal Tree](https://github.com/susanathey/causalTree). For the first, we will use a greedy solution algorithm sequentially placing splits across the variable domain that maximize our performance. Essentially, for each step, we will try all possible splits and see which one improves the objective function the most. For the second, we will retain a held-out "test" sample, so that after building the partition on the initial "train" sample we throw away those subgroup treatment effects and estimate that on the clean "test" sample.
+
+The ideal objective function for the algorithm is the penalized in-sample MSE of the true treatment effect. `$\min_{i\inS_{tr}}(\tau_i-\hat{\tau(x_i)})^2+\lambda|\Pi|$` where `$\Pi$` is the partition and `$|\Pi|$` is the amount of added complexity the partition provides (number of cells - 1) and `$\lambda$` is determined through cross-validation. The fundamental problem of causal inference is that we don't have exact ground-truth on `$\tau_i$`. Plugging in some estimates and using algebra, this is equivalent to `$\min_{i\inS_{tr}}-(\hat{\tau(x_i)})^2+\lambda|\Pi|$`. We want the partition to maximize the dispersion of the estimated treatment effects.
+
+Here is is in action. To save compoute time, avoid cells with too few observations, and reduce the chance of splitting from running many noisy tests, it's common to only look for a few splits per dimension. If we don't specify this, the function will try every possible split across each dimension.
+
+```{r}
+# With just a scalar, we will split at points equal across the quantile-distribution for each feature.
+breaks = 5 
+#Otherwise we can explicitly list the potential splits to evaluate.
+breaks = rep(list(seq(breaks)/(breaks+1)), K)
+est_part = fit_estimate_partition(y, X, d, breaks_per_dim=breaks, cv_folds=2)
+get_desc_df(est_part0)
+```
+
+We can also visualize the results
+```{r}
+plot(est_part)
+```
+
+
+Get the observation-level estimated treatment effects.
+```{r}
+tau_hat = predict(est_part, new_X=X)
+```
+
+## Changing depth
+
+Especially since the primary use of this package is for human-consumption, we may want a different level of complexity than that picked by CV. Either we can pre-specify which partition in the sequence that we want (using the `partition_i` parameter), or we can look at the sequence of objective function values and see where additional splits only provide marginal improvements.
+
+```{r}
+print(paste("In-sample Objective function values: ", paste(est_part$is_obj_val_seq, collapse=" ")))
+```
+
+## Variable importance
+
+How important are each of the dimensions of X for the objective function? We refit the model without each dimension and see the change in the objective function
+```{r}
+est_part$importance_weights
+```
+The first feature is the only one that is useful.
+
+Are there any interactions between the importances? (That is if we remove X1, does the importance of X2 change? This is done by dropping pairs of featurs at a time and see how they differ from single-feature droppings). If the effects are additively separable then there is no interaction.
+```{r}
+est_part$interaction_weights
+```
+Essentially no.
+
+A case where there could be substitution is when two variable proxy for the same underlying mechanism.
+```{r}
+X_subst = cbind(X[,1], X[,1]+rnorm(N,0,0.5))
+est_part_subst = fit_estimate_partition(y, X_subst, d, breaks_per_dim=breaks, cv_folds=2)
+est_part_subst$interaction_weights
+```
+
+A case where there are complimentarities:
+```{r}
+tau_int = as.integer(X[,1]>0.5 & X[,2]>0.5)*1
+y_int = tau_int*d + rnorm(N)
+est_part_int = fit_estimate_partition(y_int, X, d, breaks_per_dim=breaks, cv_folds=2)
+est_part_int$interaction_weights
+```
+
+## Multiple hypothesis testing
+With many estimates, we may wish to account for multiple testing when checking if "there are any negative (or positive) effects"
+```{r}
+any_neg = test_any_sign_effect(est_part, check_negative=T)
+print(paste("Adjusted 1-side p-values testing if negative:", paste(any_neg$pval1s_fdr, collapse=", ")))
+```
+
+## Easy descriptive statitics in >=3 dimensions
+Now let's look at a case where there's hereogeneity across all three dimensions.
+```{r}
+tau_3 = (as.integer(X[,1]>0.5)*2-1) + (as.integer(X[,2]>0.5)*2-1)*2 + (as.integer(X[,3]>0.5)*2-1)*3
+y_3 = d*tau_3 + rnorm(N, 0, err_sd)
+est_part_3 = fit_estimate_partition(y_3, X, d, breaks_per_dim=5, partition_i=4)
+get_desc_df(est_part_3)
+```
+
+One benefit of grid-based partitions is that you can view easily view 2D slices of full heterogeneity space.
+```{r fig.height=3, fig.width=6}
+plts = plot(est_part_3)
+
+grid.arrange(plts[[1]], plts[[2]], ncol=2)
+```
+
+## Categorical/factor features
+Binary variables can be passed in as just scalars. Unordered categorical variables should be passed in as factors. When evaluating all possible splits `CausalGrid` will try all ways to separate into two subgroups the category levels. The number of potential ways to split a categorical variable increases rapidly in the number of levels. 
+```{r}
+X2_cat=factor(letters[rbinom(3, 2, prob=0.5)+1], ordered=FALSE)
+X_cat = data.frame(X1=X[,1], X2=X2_cat)
+tau_cat = as.integer(X[,1]>.5)*2-1 + as.integer(X2_cat=="b")*2
+y_cat = tau_cat*d + rnorm(N)
+est_part_cat = fit_estimate_partition(y_cat, X_cat, d, breaks_per_dim=5, partition_i=4)
+get_desc_df(est_part_cat)
+```
+
+Many-valued cateogircal variables present the same problem to many ML algorithms. Possible solutions include: just viewing them as integers (the partition is non-linear so we don't need linear ordering of them), manually resummarizing to a factor with fewer levels, or putting a an initial ordering on them (e.g., determining the average treatment effect of each level and then ordering the levels this way.) 
+
+# Improving the partition
+We can improve the partition by controlling for X's (either local-linearly or global-flexibly) and using bootstrap "bumping"
+```{r}
+est_part_l = fit_estimate_partition(y, X, d, breaks_per_dim=5, ctrl_method = "LassoCV", bump_samples = 20, partition_i=2)
+```
+`LassoCV` is a local-linear approach and we can use the global-flexible approach by setting `ctrl_method="RF"` for a random forest.
+
+
+# Mean-outcome prediction
+```{r}
+alpha = as.integer(X[,1]>0.5)*2-1 #true average outcome effect (just heterogeneous across X1)
+y_y = alpha + rnorm(N, 0, err_sd) #outcome
+est_part_y = fit_estimate_partition(y_y, X, breaks_per_dim=5, partition_i=2)
+get_desc_df(est_part_y)
+```
+
+```{r}
+plot(est_part_y)
+```
+

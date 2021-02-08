@@ -1,40 +1,6 @@
-#' CausalGrid: A package for subgroup effects
-#'
-#' Tools for finding heterogeneous treatment effects (and means) based on
-#' partitioning the covariate/feature space via full cross-cuts and solved via
-#' greedy search. A typical usage would be analyzing and experiment to find the
-#' high-level subgroups (a coarse partition that is useful to humans) that
-#' differ in their estimated treatment effects.
-#'
-#' This package is inspired by, and uses ideas from, \code{Causal
-#' Tree} but aims to have the
-#' partition be more interpretable and have better accuracy. It is slower,
-#' though for high-level partitions this is usually not an issue.
-#'
-#' Subgroups are constructed as a grid over the features/covariates \code{X}.
-#' For example, with 1 feature going from 0 to 1 it may split at values c1, c2,
-#' resulting in segments \code{[0,c1], (c1, c2], (c2,1]}. A split at value
-#' \code{c} means it splits <= and >. The segments may be of uneven sizes.
-#' Splits along several features result in a grid by constructing the Cartesian
-#' product of the feature-specific splits. Not all features will necessarily be
-#' split or split the same number of times.
-#'
-#' The main entry point is \code{\link{fit_estimate_partition}}.
-#'
-#' Randomization: This package should be able to be run with no randomness. With
-#' default/simple parameters the following places randomize but can be
-#' overridden. \itemize{ 
-#' \item  Generating train/est splits. Can be overridden
-#' by providing \code{tr_split} 
-#' \item  Generating trtr/trcv splits. Can be
-#' overridden by providing \code{cv_folds} 
-#' \item  Bumping samples. Can be
-#' overridden by providing list of samples for \code{bump_samples} 
-#' \item
-#' Estimation plans: Provide ones ( \code{lm_est(lasso=TRUE,...)} and
-#' \code{grid_rf}) use  \code{cv_folds}. User-made ones should too. 
-#' }
-#'
+#' @description
+#' To learn more about dplyr, start with the vignettes:
+#' `browseVignettes(package = "CausalGrid")`
 #' @useDynLib CausalGrid, .registration = TRUE
 #' @importFrom Rcpp sourceCpp
 #' @importFrom stats coef formula lm model.matrix p.adjust pt qt quantile sd
@@ -44,10 +10,8 @@
 #' @importFrom gsubfn list [<-.result
 #' @import assertthat
 #' @importFrom purrr partial
-#' @docType package
-#' @name CausalGrid
-NULL
-#> NULL
+#' @keywords internal
+"_PACKAGE"
 
 #' Source code layout:
 #'
@@ -86,7 +50,7 @@ NULL
 #' - When getting factors for s ample from a grid, if the new data is more
 #' extreme (even for numbers) we throw NAs. Fix.
 #'
-#' Cleanup:
+#' Code Cleanup:
 #'
 #' - Encapsulate valid_partition() + split_check_fn with est_plan (deal with
 #' what happens with est error). + Doc.
@@ -94,16 +58,20 @@ NULL
 #' - Styler and lintr; https://style.tidyverse.org/
 #'
 #' - Merge `factor_from_idxs` and `foldlists_to_foldids`
+#' 
+#' Infrastructure:
+#'
+#' - Github actions for pkgdown generation
 #'
 #' Functionality:
 #'
 #' - Implement honest version of eval metric
 #'
-#' - Allow for picking paritition with # cells closest to an 'ideal' number
+#' - Allow for picking partition with # cells closest to an 'ideal' number
 #'
 #' - Allow initial splits to be pre-determined.
 #'
-#' - Predict function: allow y_hat and llow multidataset te
+#' - Predict function: allow y_hat and allow multi-dataset te
 #'
 #' - Like GRF, When considering a split, require that each child node have
 #' min.node.size samples with treatment value less than the average, and at
@@ -128,12 +96,16 @@ NULL
 #' - graphs: Show a rug (indicators for data points on the x-axis) or a
 #' histogram along axis.
 #'
-#' Usability:
+#' Documentation:
 #'
-#' - Documentation descriptions (separate from titles). Define the bump samples
-#' explicit case.
-#' 
-#' - Show in vignette how to hand-build a partition, and estimate it.
+#' - Documentation descriptions (separate from titles)
+#'
+#' - Make how-to guide for Implementing own control approach
+#'
+#' - Document and make how-to guide for non-randomness (and how do all
+#' bump-sample +CV  styles)
+#'
+#' Usability:
 #'
 #' - Have nicer factor labels (especially if split at bottom point, make [T,T]
 #' rather than [T,T+1], and redo top (to not have -1))

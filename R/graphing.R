@@ -11,6 +11,7 @@
 #' @return ggplot2 object or list of such objects
 #' @export
 plot.estimated_partition <- function(x, X_names_2D=NULL, ...) {
+  assert_that(x$M==1, msg="Error: plotting not implemented with separate estimates.")
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("Package \"ggplot2\" needed for this function to work. Please install it.",
          call. = FALSE)

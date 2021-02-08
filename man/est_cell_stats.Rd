@@ -36,9 +36,7 @@ mean-estimator and scalar_te_estimator}
 \item{alpha}{Significance threshold}
 }
 \value{
-list
-\item{cell_factor}{Factor with levels for each cell for X. Length N.}
-\item{stats}{data.frame(cell_i, N_est, param_ests, var_ests, tstats, pval, ci_u, ci_l, p_fwer, p_fdr)}
+data.frame(cell_i, N_est, param_ests, var_ests, tstats, pval, ci_u, ci_l, p_fwer, p_fdr)
 }
 \description{
 Estimate the parameters (including standard errors) across the cells in the sample.

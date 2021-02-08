@@ -90,14 +90,28 @@
   </a>
   <ul class="dropdown-menu" role="menu">
     <li>
-      <a href="../articles/vignette.html">High-Level Analysis</a>
+      <a href="../articles/howto_parallel.html">Howto: Parallel Processing</a>
+    </li>
+    <li>
+      <a href="../articles/overview_separate_params.html">Overview: Separate parameter types</a>
+    </li>
+    <li>
+      <a href="../articles/tutorial_beginner.html">Tutorial: Beginner</a>
     </li>
   </ul>
+</li>
+<li>
+  <a href="../news/index.html">Changelog</a>
 </li>
       </ul>
       
       <ul class="nav navbar-nav navbar-right">
-        
+        <li>
+  <a href="https://github.com/microsoft/CausalGrid/">
+    <span class="fab fa fab fa-github fa-lg"></span>
+     
+  </a>
+</li>
       </ul>
       
     </div><!--/.nav-collapse -->
@@ -112,7 +126,7 @@
   <div class="col-md-9 contents">
     <div class="page-header">
     <h1>Estimate parameters across the cells</h1>
-    
+    <small class="dont-index">Source: <a href='https://github.com/microsoft/CausalGrid/blob/master/R/fit_estimate.R'><code>R/fit_estimate.R</code></a></small>
     <div class="hidden name"><code>est_cell_stats.Rd</code></div>
     </div>
 
@@ -175,10 +189,7 @@ mean-estimator and scalar_te_estimator</p></td>
     
     <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
 
-    <p>list</p>
-<dt>cell_factor</dt><dd><p>Factor with levels for each cell for X. Length N.</p></dd>
-<dt>stats</dt><dd><p>data.frame(cell_i, N_est, param_ests, var_ests, tstats, pval, ci_u, ci_l, p_fwer, p_fdr)</p></dd>
-
+    <p>data.frame(cell_i, N_est, param_ests, var_ests, tstats, pval, ci_u, ci_l, p_fwer, p_fdr)</p>
     
     <h2 class="hasAnchor" id="multiple-estimates"><a class="anchor" href="#multiple-estimates"></a>Multiple estimates</h2>
 

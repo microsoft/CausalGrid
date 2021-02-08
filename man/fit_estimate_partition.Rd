@@ -2,7 +2,6 @@
 % Please edit documentation in R/fit_estimate.R
 \name{fit_estimate_partition}
 \alias{fit_estimate_partition}
-\alias{is_estimated_partition}
 \title{Fit Grid Partition and estimate cell stats}
 \usage{
 fit_estimate_partition(
@@ -28,8 +27,6 @@ fit_estimate_partition(
   importance_type = "",
   ...
 )
-
-is_estimated_partition(x)
 }
 \arguments{
 \item{y}{Nx1 matrix of outcome (label/target) data. With multiple core estimates see Details below.}
@@ -94,8 +91,6 @@ interaction - (smart) redo full fitting removing each pair of dimensions
  "" - Nothing}
 
 \item{...}{Additional params.}
-
-\item{x}{an R object}
 }
 \value{
 An object with class \code{"estimated_partition"}.
@@ -113,19 +108,10 @@ An object with class \code{"estimated_partition"}.
         \item{varnames}{varnames (or c("X1", "X2",...) if X doesn't have colnames)}
         \item{est_plan}{Fitted \code{\link{EstimatorPlan}} used.}
         \item{full_stat_df}{Full sample average stats from \code{\link{est_full_stats}}}
-
-True if x is an estimated_partition
 }
 \description{
 Split the data, one one side train/fit the partition using \code{\link{fit_partition}} and then on the other estimate subgroup effects.
-
-Tests whether the object is an \code{estimated_partition} object.
 }
-\section{Functions}{
-\itemize{
-\item \code{is_estimated_partition}: is estimated_partition
-}}
-
 \section{Multiple estimates}{
 
 With multiple core estimates (M) there are 3 options (the first two have the same sample across treatment effects).\enumerate{

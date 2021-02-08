@@ -42,7 +42,7 @@ eval_mse_hat(
 
 \item{cell_factor_tr}{Factor for cells for each observation. Pass in this or \code{partition}.}
 
-\item{est_plan}{Estimation plan. If this and  \code{estimator} are null, then one is created as  \code{gen_simple_est_plan(has_d=!is.null(d))}}
+\item{est_plan}{Estimation plan. If this and  \code{estimator} are null, then one is created as  \code{gen_simple_est_plan(has_d=!is_NULL_m(d))}}
 
 \item{estimator}{If not passing in \code{est_plan}, can pass in this estimation routine and one is created using \code{\link{simple_est}}.}
 

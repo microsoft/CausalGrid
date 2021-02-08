@@ -5,12 +5,14 @@
 \alias{is_grid_partition}
 \title{Create a null \code{grid_partition}}
 \usage{
-grid_partition(X_range, varnames = NULL)
+grid_partition(X = NULL, X_range = NULL, varnames = NULL)
 
 is_grid_partition(x)
 }
 \arguments{
-\item{X_range}{Such as from \code{\link{get_X_range}}}
+\item{X}{Feature data. Must pass in this or \code{X_range}.}
+
+\item{X_range}{Such as from \code{\link{get_X_range}} (saves time if already computed)}
 
 \item{varnames}{Names of the X-variables}
 

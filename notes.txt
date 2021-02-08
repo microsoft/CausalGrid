@@ -1,0 +1,17 @@
+warning_handler <- function(c) {
+if(conditionMessage(c)!="essentially perfect fit: summary may be unreliable") 
+{
+warning(c)
+}
+}
+
+withCallingHandlers(warning = warning_handler, {
+  cat("A\n")
+  simpleWarning("Something else happened")
+  cat("B\n")
+  simpleWarning("essentially perfect fit: summary may be unreliable")
+  cat("C\n")
+})
+
+
+tryCatch(summary(lm(y~X)), warning=function(w) {print(class(w)); print(w);})

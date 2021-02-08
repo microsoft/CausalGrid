@@ -1,0 +1,63 @@
+---
+title: "Howto: Parallel Processing"
+author: "Brian Quistorff"
+date: "`r Sys.Date()`"
+output: 
+  rmarkdown::html_vignette:
+    df_print: kable
+vignette: >
+  %\VignetteIndexEntry{Howto: Parallel Processing}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  dev = "ragg_png"
+)
+```
+
+```{r, message=FALSE}
+library(CausalGrid)
+library(parallel)
+library(pbapply)
+```
+
+Some common parameters
+```{r}
+set.seed(1337)
+N = 1000
+K = 3
+err_sd = 1
+```
+
+# Simple Example
+
+Let's get some fake data
+```{r}
+X = matrix(runif(N*K), ncol=K) #Features for splitting partition
+d = rbinom(N, 1, 0.5) #treatment assignment
+tau = as.integer(X[,1]>.5)*2-1 #true treatment effect (just heterogeneous across X1)
+y = d*tau + rnorm(N, 0, err_sd) #outcome
+```
+
+
+# Parallel-processing
+How many cores to use
+```{r}
+# Detect for this machine
+n_cores <- detectCores()
+#print(n_cores)
+
+#Check if config option, otherwise manu number
+n_cores_to_use = getOption("cl.cores", default=3)
+```
+
+Parallel-processing the outer-loops. If you have pbapply installed you will get a nice progress bar
+```{r}
+cl <- makeCluster(n_cores_to_use)
+fit_res = fit_estimate_partition(y, X, d, pr_cl=cl)
+stopCluster(cl)
+```

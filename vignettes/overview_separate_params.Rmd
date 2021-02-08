@@ -1,0 +1,97 @@
+---
+title: "Overview: Separate parameter types"
+author: "Brian Quistorff"
+date: "`r Sys.Date()`"
+output: 
+  rmarkdown::html_vignette:
+    df_print: kable
+vignette: >
+  %\VignetteIndexEntry{Overview: Separate parameter types}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  dev = "ragg_png"
+)
+```
+.
+
+```{r, message=FALSE}
+library(CausalGrid)
+```
+
+
+Some common parameters
+```{r}
+set.seed(1337)
+N = 1000
+K = 3
+err_sd = 1
+```
+
+# Treatment effects
+We can generate a single partition that works across multiple core estimates. We have three options.
+
+First we get some common variables.
+```{r}
+X = matrix(runif(N*K), ncol=K) #Features for splitting partition
+d = rbinom(N, 1, 0.5) #treatment assignment
+tau = as.integer(X[,1]>.5)*2-1 #true treatment effect (just heterogeneous across X1)
+y = d*tau + rnorm(N, 0, err_sd) #outcome
+```
+
+
+1) Multiple outcomes, but same sample (single treatment)
+```{r}
+tau2 = as.integer(X[,2]>0.5)*2-1
+y2_yM = d*tau2 + rnorm(N, 0, err_sd)
+y_yM = cbind(y, y2_yM)
+est_part_yM = fit_estimate_partition(y_yM, X, d, breaks_per_dim=5, partition_i = 3)
+get_desc_df(est_part_yM)
+```
+
+2) Multiple treatments, but same sample (single outcome)
+```{r}
+d2 = rbinom(N, 1, 0.5)
+d_dM = cbind(d, d2)
+y_dM =  d*tau + d2*tau2 + rnorm(N, 0, err_sd)
+est_part_dM = fit_estimate_partition(y_dM, X, d_dM, breaks_per_dim=5, partition_i = 3)
+get_desc_df(est_part_dM)
+```
+
+3) Multiple separate samples, each having a single outcome and treatment
+```{r}
+y2_MM = d2*tau2 + rnorm(N, 0, err_sd)
+y_MM = list(y, y2_MM)
+d_MM = list(d, d2)
+X_MM = list(X, X)
+est_part_MM = fit_estimate_partition(y_MM, X_MM, d_MM, breaks_per_dim=5, partition_i = 3)
+get_desc_df(est_part_MM)
+```
+
+# Outcome means
+
+1b) Multiple outcomes, but the same sample
+```{r}
+alpha1 = as.integer(X[,2]>0.5)*2-1
+yb = alpha1 + rnorm(N, 0, err_sd)
+alpha2 = as.integer(X[,2]>0.6)*2-1
+y2_yMb = alpha2 + rnorm(N, 0, err_sd)
+y_yMb = cbind(yb, y2_yMb)
+est_part_yM = fit_estimate_partition(y_yMb, X, breaks_per_dim=5, partition_i = 3)
+get_desc_df(est_part_yM)
+```
+
+3b) Multiple separate samples, each having a single outcome
+```{r}
+y_MMb = list(yb, y2_yMb)
+X_MMb = list(X, X)
+est_part_MM = fit_estimate_partition(y_MMb, X_MMb, breaks_per_dim=5, partition_i = 3)
+get_desc_df(est_part_MM)
+```
+
+

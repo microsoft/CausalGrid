@@ -189,6 +189,12 @@ is_sep_estimators <- function(m_mode) {
   return(m_mode==DS.MULTI_SAMPLE || m_mode==DS.MULTI_Y)
 }
 
+is_NULL_m <- function(d) {
+  if(is.null(d)) return(TRUE)
+  if(is.list(d)) return(is.null(d[[1]]))
+  return(FALSE)
+}
+
 sum_m <- function(data, M_mult) {
   if(!M_mult) return(sum(data))
   return(sapply(data, sum))
@@ -220,12 +226,14 @@ get_sample_type <- function(y, X, d=NULL, checks=FALSE) {
     K = ncol(X[[1]])
     
     if(checks) {
-      check_list_dims <- function(new_type) {
+      check_list_dims <- function(new_type, inside_check=TRUE) {
         assert_that(is.list(new_type), length(new_type)==M, msg="Separate samples, but aux param isn't list of same length")
-        for(m in 1:M) assert_that(length(new_type[[m]])==N[[m]], msg="Separate samples, but aux param's list elements aren't the right length.")
+        if(inside_check) {
+          for(m in 1:M) assert_that(length(new_type[[m]])==N[[m]], msg="Separate samples, but aux param's list elements aren't the right length.")  
+        }
       }
       check_list_dims(y)
-      if(!is.null(d)) check_list_dims(d)
+      if(!is_NULL_m(d)) check_list_dims(d, inside_check=FALSE) #For outcome-mean could be a list of NULLs
       
       for(m in 1:M) {
         assert_that(ncol(X[[m]])==K, msg="Separate samples, but X's don't all have the same number of columns.")
@@ -237,7 +245,7 @@ get_sample_type <- function(y, X, d=NULL, checks=FALSE) {
     N = nrow(X)
     K = ncol(X)
     
-    if(!is.null(d) && is.matrix(d) && ncol(d)>1) {
+    if(!is_NULL_m(d) && is.matrix(d) && ncol(d)>1) {
       m_mode= DS.MULTI_D
       M = ncol(d)
       if(checks){
@@ -245,20 +253,20 @@ get_sample_type <- function(y, X, d=NULL, checks=FALSE) {
         assert_that(nrow(d)==N, length(y)==N, msg="d and N don't have the right number of rows.")
       }
     }
-    else if(!is.null(d) && is.matrix(y) && ncol(y)>1) {
+    else if(is.matrix(y) && ncol(y)>1) {
       m_mode= DS.MULTI_Y
       M = ncol(y)
       N = nrow(X)
       if(checks){
         assert_that(!inherits(y, "tbl"), msg="d not allowed to be a tibble") #TODO: Could silently conver
-        assert_that(is.null(d) || length(d)==N, nrow(y)==N, msg="d and N don't have the right number of rows.") 
+        assert_that(is_NULL_m(d) || length(d)==N, nrow(y)==N, msg="d and y don't have the right number of rows.") 
       }
     }
     else {
       m_mode= DS.SINGLE
       M=1    
       if(checks)
-        assert_that(is.null(d) || length(d)==N, length(y)==N, msg="d and N don't have the right number of rows.")
+        assert_that(is_NULL_m(d) || length(d)==N, length(y)==N, msg="d and N don't have the right number of rows.")
     }
     
     if(M>1) N= rep(N, M)
@@ -268,7 +276,7 @@ get_sample_type <- function(y, X, d=NULL, checks=FALSE) {
 
 check_M_K <- function(M, m_mode, K, X_aux, d_aux) {
   if(m_mode==DS.MULTI_SAMPLE) {
-    assert_that(length(X_aux)==M, is.null(d_aux) || length(d_aux)==M, msg="Separate samples, but X_aux or d_aux don't have the right structure.")
+    assert_that(length(X_aux)==M, is_NULL_m(d_aux) || length(d_aux)==M, msg="Separate samples, but X_aux or d_aux don't have the right structure.")
     for(m in 1:M) assert_that(ncol(X_aux[[m]])==K, msg="Separate samples, but an element of X_aux doesn't have the right number of columns.")
   }
   else {
@@ -317,9 +325,9 @@ subsample_m <- function(y, X, d, sample) {
   if(!M_mult) {
     return(list(row_sample(y,sample), X[sample,,drop=FALSE], row_sample(d,sample)))
   }
-  return(list(mapply(function(y_s, sample_s) y_s[sample_s], y, sample, SIMPLIFY=FALSE),
+  return(list(mapply(function(y_s, sample_s) row_sample(y_s,sample_s), y, sample, SIMPLIFY=FALSE),
               mapply(function(X_s, sample_s) X_s[sample_s,,drop=FALSE], X, sample, SIMPLIFY=FALSE),
-              mapply(function(d_s, sample_s) d_s[sample_s], d, sample, SIMPLIFY=FALSE)))
+              mapply(function(d_s, sample_s) row_sample(d_s,sample_s), d, sample, SIMPLIFY=FALSE)))
 }
 
 
@@ -347,10 +355,14 @@ split_sample_m <- function(y, X, d, index_tr) {
   }
   else {
     y_tr = y_es = X_tr = X_es = d_tr = d_es = list()
-    N_est = rep(0, length(X))
-    for(m in 1:length(X))
+    M = length(X)
+    N_est = rep(0, M)
+    for(m in 1:M)
       list[y_tr[[m]], y_es[[m]], X_tr[[m]], X_es[[m]], d_tr[[m]], d_es[[m]], N_est[m]] = split_sample(y[[m]], X[[m]], d[[m]], index_tr[[m]])
     N_est = sapply(X_es, nrow)
+    if(is_NULL_m(d)) {
+      d_tr = d_es = rep(list(NULL), M)
+    }
   }
   return(list(y_tr, y_es, X_tr, X_es, d_tr, d_es, N_est))
 }
@@ -387,8 +399,12 @@ split_sample_folds_m <- function(y, X, d, folds_ret, f) {
   }
   else {
     y_f_tr = y_f_cv = X_f_tr = X_f_cv = d_f_tr = d_f_cv = list()
-    for(m in 1:length(X))
+    M = length(X)
+    for(m in 1:M)
       list[y_f_tr[[m]], y_f_cv[[m]], X_f_tr[[m]], X_f_cv[[m]], d_f_tr[[m]], d_f_cv[[m]]] = split_sample_folds_m(y[[m]], X[[m]], d[[m]], folds_ret[[m]], f)
+    if(is_NULL_m(d)) {
+      d_f_tr = d_f_cv = d = rep(list(NULL), M)
+    }
   }
   return(list(y_f_tr, y_f_cv, X_f_tr, X_f_cv, d_f_tr, d_f_cv))
 }
@@ -398,8 +414,13 @@ fit_and_residualize_m <- function(est_plan, X_tr, y_tr, d_tr, cv_folds, y_es, X_
     return(fit_and_residualize(est_plan, X_tr, y_tr, d_tr, cv_folds, y_es, X_es, d_es, verbosity, dim_cat))
   
   if(m_mode==DS.MULTI_SAMPLE) {
-    for(m in 1:M)
+    for(m in 1:M) {
       list[est_plan[[m]], y_tr[[m]], d_tr[[m]], y_es[[m]], d_es[[m]]] = fit_and_residualize(est_plan[[m]], X_tr[[m]], y_tr[[m]], d_tr[[m]], cv_folds[[m]], y_es[[m]], X_es[[m]], d_es[[m]], verbosity, dim_cat)
+    }
+    if(is_NULL_m(d_tr)) {
+      d_es = d = rep(list(NULL), M)
+    }
+    
     return(list(est_plan, y_tr, d_tr, y_es, d_es))
   }
   

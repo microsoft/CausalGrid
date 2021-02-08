@@ -18,12 +18,15 @@ NULL
 #' Information about a split can be retrieved using \code{\link{num_cells}}, \code{\link{get_desc_df}} and \code{\link{print}}
 #' With data, one can determine the cell for each observation using \code{\link{predict}}
 #'
-#' @param X_range Such as from \code{\link{get_X_range}}
+#' @param X Feature data. Must pass in this or \code{X_range}.
+#' @param X_range Such as from \code{\link{get_X_range}} (saves time if already computed)
 #' @param varnames Names of the X-variables
 #'
 #' @return Grid Partition
 #' @export
-grid_partition <- function(X_range, varnames=NULL) {
+grid_partition <- function(X=NULL, X_range=NULL, varnames=NULL) {
+  if(is.null(X_range)) X_range = get_X_range(X)
+  if(is.null(varnames) && !is.null(X)) varnames = colnames(X)
   K = length(X_range)
   s_by_dim = vector("list", length=K) #splits_by_dim(s_seq) #stores Xk_val's
   dim_cat = c()
@@ -65,6 +68,7 @@ is_grid_partition <- function(x) {
 #'
 #' @return list of length K with each element being the "range" along that dimension
 #' @export
+#' @keywords internal
 get_X_range <- function(X) {
   if(is_sep_sample(X))
     X = do.call("rbind", X)
@@ -213,6 +217,7 @@ get_desc_df.grid_partition <- function(obj, cont_bounds_inf=TRUE, do_str=FALSE, 
 #'
 #' @return updated Grid Partition
 #' @export
+#' @keywords internal
 add_partition_split <- function(obj, s) {
   k = s[[1]]
   X_k_cut = s[[2]]
@@ -288,9 +293,18 @@ segment_indexes_from_cell_i <- function(cell_i, n_segments) {
   return(index)
 }
 
-partition_from_split_seq <- function(split_seq, X_range, varnames=NULL, max_include=Inf) {
-  part = grid_partition(X_range, varnames)
-  for(i in seq_len(min(length(split_seq), max_include))) part = add_partition_split(part, split_seq[[i]])
+#' Generate a grid_partition from a sequence of splits
+#'
+#' @param split_seq list of splits
+#' @param X Features. Must pass in this or \code{X_range}
+#' @param X_range Domain for the features (saves time if already computed)
+#' @param varnames variable names
+#'
+#' @return A \code{grid_partition}
+#' @export
+partition_from_split_seq <- function(split_seq, X=NULL, X_range=NULL, varnames=NULL) {
+  part = grid_partition(X=X, X_range=X_range, varnames=varnames)
+  for(i in seq_len(length(split_seq))) part = add_partition_split(part, split_seq[[i]])
   return(part)
 }
 
@@ -458,6 +472,7 @@ fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, 
   assert_that(inherits(est_plan, "estimator_plan") || (is.list(est_plan) && inherits(est_plan[[1]], "estimator_plan")), msg="estimator_plan argument (or it's first element) doesn't inherit from estimator_plan class") 
   #verbosity can be negative if decrementd from a fit_estimate call
   list[M, m_mode, N, K] = get_sample_type(y, X, d, checks=TRUE)
+  if(is.null(d) & m_mode==DS.MULTI_SAMPLE) d = rep(list(NULL), M)
   if(is_sep_sample(X) && length(cv_folds)>1) {
     assert_that(is.list(cv_folds) && length(cv_folds)==M, msg="When separate samples and length(cv_folds)>1, need is.list(cv_folds) && length(cv_folds)==M.")
   }
@@ -661,7 +676,7 @@ valid_partition <- function(cell_factor, d=NULL, cell_factor_aux=NULL, d_aux=NUL
     }
   }
   
-  if(!is.null(d)) {
+  if(!is_NULL_m(d)) {
     if(!is_vec(d)) {
       for(m in 1:ncol(d)) {
         if(any(by(d[,m], cell_factor, FUN=const_vect))) {
@@ -676,7 +691,7 @@ valid_partition <- function(cell_factor, d=NULL, cell_factor_aux=NULL, d_aux=NUL
       }
     }
   }
-  if(!is.null(d_aux)) {
+  if(!is_NULL_m(d_aux)) {
     if(!is_vec(d_aux)) {
       for(m in 1:ncol(d_aux)) {
         if(any(by(d_aux[,m], cell_factor, FUN=const_vect))) {
@@ -887,7 +902,7 @@ fit_partition_full_k <- function(k, y, X_d, d, X_range, pb, debug, valid_breaks,
         shifted_mask = gen_cont_window_mask_m(X_d, k, prev_split_checked, X_k_cut)
         shifted_N = sum_m(shifted_mask, m_mode==DS.MULTI_SAMPLE)
         shifted_cell_factor_nk = droplevels_m(apply_mask_m(cell_factor_nk, shifted_mask, m_mode==DS.MULTI_SAMPLE), m_mode==DS.MULTI_SAMPLE)
-        shifted_d = if(is.null(d)) NULL else apply_mask_m(d, shifted_mask, m_mode==DS.MULTI_SAMPLE)
+        shifted_d = if(is_NULL_m(d)) NULL else apply_mask_m(d, shifted_mask, m_mode==DS.MULTI_SAMPLE)
         split_OK = split_check_fn(shifted_N, shifted_d, shifted_cell_factor_nk, m_mode)
         if(!split_OK) {
           valid_breaks_k[[1]][X_k_cut_i] = FALSE
@@ -1039,11 +1054,11 @@ fit_partition_full <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, X_range, ma
   assert_that(is.flag(allow_est_errors_aux), msg="allow_est_errors_aux needs to be a flag")
   assert_that(is.na(nsplits_k_warn_limit) || nsplits_k_warn_limit>=1, msg="nsplits_k_warn_limit not understood")
   list[M, m_mode, N, K] = get_sample_type(y, X, d, checks=TRUE)
-  est_min = ifelse(is.null(d), 2, 3) #If don't always need variance calc: ifelse(is.null(d), ifelse(honest, 2, 1), ifelse(honest, 3, 2))
+  est_min = ifelse(is_NULL_m(d), 2, 3) #If don't always need variance calc: ifelse(is_NULL_m(d), ifelse(honest, 2, 1), ifelse(honest, 3, 2))
   min_size = max(min_size, est_min)
   if(!allow_est_errors_aux)  min_size_aux = max(min_size_aux, est_min)
   debug = FALSE
-  if(is.null(partition)) partition = grid_partition(X_range, colnames(X))
+  if(is.null(partition)) partition = grid_partition(X_range=X_range, colnames(X))
   breaks_per_dim = get_usable_break_points(breaks_per_dim, X, X_range, partition$dim_cat)
   valid_breaks = vector("list", length=K) #splits_by_dim(s_seq) #stores Xk_val's
   

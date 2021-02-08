@@ -28,3 +28,4 @@ Imports: Rcpp (>= 1.0.1),
 LinkingTo: Rcpp
 Encoding: UTF-8
 VignetteBuilder: knitr
+URL: https://microsoft.github.io/CausalGrid/, https://github.com/microsoft/CausalGrid

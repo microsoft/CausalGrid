@@ -98,6 +98,10 @@ fit_estimate_partition(y3m, X3m, d3m, partition_i=2, tr_split = tr_splits, cv_fo
 fit_estimate_partition(y3m, X3m, d3m, partition_i=2, tr_split = tr_splits, cv_folds=cv_foldss, bump_samples=2)
 fit_estimate_partition(y3, X3, d3, bump_samples=2)
 
+#print(4) #outcome-mean
+fit_estimate_partition(y1m, X1m, partition_i=2, tr_split = list(tr_splits,tr_splitl,tr_splits), cv_folds=list(cv_foldss,cv_foldsl,cv_foldss), bump_samples=2)
+fit_estimate_partition(y3m, X3m, partition_i=2, tr_split = tr_splits, cv_folds=cv_foldss, bump_samples=2)
+
 test_that("We get through the tests", {
   expect_equal(1,1)
 })

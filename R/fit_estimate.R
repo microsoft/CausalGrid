@@ -85,6 +85,7 @@ fit_estimate_partition <- function(y, X, d=NULL, tr_split = 0.5, max_splits=Inf,
   assert_that(!honest, msg="Honest eval metric not currently implimented.")
   honest=FALSE
   list[M, m_mode, N_tr, K] = get_sample_type(y, X, d, checks=TRUE)
+  if(is.null(d) & m_mode==DS.MULTI_SAMPLE) d = rep(list(NULL), M)
   if(is_sep_sample(X) && length(tr_split)>1) {
     assert_that(is.list(tr_split) && length(tr_split)==M, msg="When separate sample & length(tr_split)>1, need is.list(tr_split) && length(tr_split)==M")
   }
@@ -105,10 +106,10 @@ fit_estimate_partition <- function(y, X, d=NULL, tr_split = 0.5, max_splits=Inf,
   #Setup est_plan
   if(is.character(ctrl_method)) {
     if(ctrl_method=="") {
-      est_plan = gen_simple_est_plan(has_d=!is.null(d))
+      est_plan = gen_simple_est_plan(has_d=!is_NULL_m(d))
     } 
     else {
-      assert_that(ctrl_method %in% c("all", "LassoCV", "RF"), !is.null(d), msg="String ctrl_method sepecified but not undestood or d is null.")
+      assert_that(ctrl_method %in% c("all", "LassoCV", "RF"), !is_NULL_m(d), msg="String ctrl_method sepecified but not undestood or d is null.")
       est_plan = if(ctrl_method=="RF") grid_rf() else lm_est(lasso = ctrl_method=="LassoCV")
     }
   }
@@ -154,7 +155,7 @@ fit_estimate_partition <- function(y, X, d=NULL, tr_split = 0.5, max_splits=Inf,
                         cell_stats=cell_stats, 
                         importance_weights=importance_weights, 
                         interaction_weights=interaction_weights, 
-                        has_d=!is.null(d),
+                        has_d=!is_NULL_m(d),
                         lambda=lambda, 
                         is_obj_val_seq=is_obj_val_seq,
                         complexity_seq=complexity_seq,
@@ -179,7 +180,7 @@ fit_estimate_partition <- function(y, X, d=NULL, tr_split = 0.5, max_splits=Inf,
 #'
 #' @return True if x is an estimated_partition
 #' @export
-#' @describeIn fit_estimate_partition is estimated_partition
+#' @describeIn estimated_partition is estimated_partition
 is_estimated_partition <- function(x) {
   inherits(x, "estimated_partition")
 } 
@@ -215,11 +216,11 @@ change_complexity <- function(fit, y, X, d=NULL, partition_i, index_tr = fit$ind
   X = update_names_m(X)
   list[y_tr, y_es, X_tr, X_es, d_tr, d_es, N_est] = split_sample_m(y, X, d, index_tr)
   
-  fit$partition = partition_from_split_seq(split_seq, fit$partition$X_range, 
-                                           varnames=fit$partition$varnames, max_include=partition_i-1)
-  list[cell_factor, stats] = est_cell_stats(y_es, X_es, d_es, fit$partition, est_plan=est_plan)
-  fit$cell_stats = stats
-  
+  split_seq_to_use = if(partition_i-1<length(split_seq)) split_seq[seq_len(partition_i-1)] else split_seq
+  fit$partition = partition_from_split_seq(split_seq_to_use, X_range=fit$partition$X_range, 
+                                           varnames=fit$partition$varnames)
+  fit$cell_stats = est_cell_stats(y_es, X_es, d_es, fit$partition, est_plan=est_plan)
+
   return(fit)
 }
 
@@ -268,7 +269,7 @@ get_desc_df.estimated_partition <- function(obj, cont_bounds_inf=TRUE, do_str=TR
 #' @return string (and displayed)
 #' @export 
 print.estimated_partition <- function(x, do_str=TRUE, drop_unsplit=TRUE, digits=NULL, import_order=FALSE, ...) {
-  return(print(get_desc_df(x, do_str, drop_unsplit, digits, import_order=import_order), 
+  return(print(get_desc_df(x, do_str=do_str, drop_unsplit=drop_unsplit, digits=digits, import_order=import_order), 
                digits=digits, ...))
 }
 
@@ -345,9 +346,7 @@ test_any_sign_effect <- function(obj, check_negative=T, method="fdr", alpha=0.05
 #' @param alpha Significance threshold
 #' @inheritParams fit_partition
 #' 
-#' @return list
-#' \item{cell_factor}{Factor with levels for each cell for X. Length N.}
-#' \item{stats}{data.frame(cell_i, N_est, param_ests, var_ests, tstats, pval, ci_u, ci_l, p_fwer, p_fdr)}
+#' @return data.frame(cell_i, N_est, param_ests, var_ests, tstats, pval, ci_u, ci_l, p_fwer, p_fdr)
 #' @export
 est_cell_stats <- function(y, X, d=NULL, partition=NULL, cell_factor=NULL, estimator_var=NULL, 
                            est_plan=NULL, alpha=0.05) {
@@ -355,7 +354,7 @@ est_cell_stats <- function(y, X, d=NULL, partition=NULL, cell_factor=NULL, estim
   X = ensure_good_X(X)
   
   if(is.null(est_plan)) {
-    if(is.null(estimator_var)) est_plan = gen_simple_est_plan(has_d=!is.null(d))
+    if(is.null(estimator_var)) est_plan = gen_simple_est_plan(has_d=!is_NULL_m(d))
     else est_plan = simple_est(NULL, estimator_var)
   }
   if(is.null(cell_factor)) {
@@ -383,7 +382,7 @@ est_cell_stats <- function(y, X, d=NULL, partition=NULL, cell_factor=NULL, estim
   colnames(p_fwer) = if(M==1) "p_fwer" else paste("p_fwer", 1:M, sep="")
   colnames(p_fdr) = if(M==1) "p_fdr" else paste("p_fdr", 1:M, sep="")
   stat_df = cbind(stat_df, p_fwer, p_fdr)
-  return(list(cell_factor=cell_factor, stats=stat_df))
+  return(stat_df)
 }
 
 
@@ -480,7 +479,7 @@ predict.estimated_partition <- function(object, new_X, new_d = NULL, type = "eff
 #' @param N_est Size of estimation sample. Unused for this objective function.
 #' @param partition Grid partition. Pass in this or \code{cell_factor}.
 #' @param cell_factor_tr Factor for cells for each observation. Pass in this or \code{partition}. 
-#' @param est_plan Estimation plan. If this and  \code{estimator} are null, then one is created as  \code{gen_simple_est_plan(has_d=!is.null(d))}
+#' @param est_plan Estimation plan. If this and  \code{estimator} are null, then one is created as  \code{gen_simple_est_plan(has_d=!is_NULL_m(d))}
 #' @param estimator If not passing in \code{est_plan}, can pass in this estimation routine and one is created using \code{\link{simple_est}}.
 #' @param debug T/F whether we are in debug mode (and print out more info)
 #' @param warn_on_error  T/F for whether to display a warning when estimation fails (NA values returned)
@@ -493,7 +492,7 @@ eval_mse_hat <-function(y_tr, X_tr, d_tr, y_te=NULL, X_te=NULL, d_te=NULL, N_est
                         warn_on_error=FALSE, sample="trtr", ...) {
   incl_te = !is.null(y_te)
   if(is.null(est_plan)) {
-    if(is.null(estimator)) est_plan = gen_simple_est_plan(has_d=!is.null(d_tr))
+    if(is.null(estimator)) est_plan = gen_simple_est_plan(has_d=!is_NULL_m(d_tr))
     else est_plan = simple_est(estimator, estimator)
   }
   
@@ -563,7 +562,7 @@ eval_mse_hat_tbl <- function(train_tbl, te_tbl=NULL, incl_base_te=TRUE) {
 # eval_emse_hat<-function(y, X , d, N_est, partition=NULL, cell_factor=NULL, estimator_var=NULL, debug=FALSE, 
 #                     warn_on_error=FALSE, alpha=NULL, est_plan=NULL, sample="trtr") {
 #   if(is.null(est_plan)) {
-#     if(is.null(estimator_var)) est_plan = gen_simple_est_plan(has_d=!is.null(d))
+#     if(is.null(estimator_var)) est_plan = gen_simple_est_plan(has_d=!is_NULL_m(d))
 #     else est_plan = simple_est(estimator_var, estimator_var)
 #   }
 #   if(is.null(cell_factor)) {
@@ -590,7 +589,7 @@ eval_mse_hat_tbl <- function(train_tbl, te_tbl=NULL, incl_base_te=TRUE) {
 #     if(!all(is.finite(param_est)) || !all(is.finite(var_est))) {
 #       N_cell_err = N_cell_err+1
 #       msg = paste("Failed estimation: (N_l=", N_l, ", param_est=", param_est, ", var_est=", var_est,
-#                   ifelse(!is.null(d), paste(", var_d=", var(d_cell)) , ""),
+#                   ifelse(!is_NULL_m(d), paste(", var_d=", var(d_cell)) , ""),
 #                   ")\n")
 #       if(warn_on_error) warning(msg)
 #       next
@@ -617,19 +616,22 @@ get_cell <- function(y, X, d, cell_factor, cell_i, lvls) {
     y_cell = d_cell = X_cell = list()
     N_l = rep(0, M)
     for(m in 1:M) {
-      cell_ind = cell_factor[[m]]==lvls[[m]][cell_i]
-      y_cell[[m]] = y[[m]][cell_ind]
-      d_cell[[m]] = d[[m]][cell_ind]
-      X_cell[[m]] = X[[m]][cell_ind, , drop=FALSE]
-      N_l[m] = sum(cell_ind)
+      cell_mask = cell_factor[[m]]==lvls[[m]][cell_i]
+      y_cell[[m]] = y[[m]][cell_mask]
+      d_cell[[m]] = d[[m]][cell_mask]
+      X_cell[[m]] = X[[m]][cell_mask, , drop=FALSE]
+      N_l[m] = sum(cell_mask)
+    }
+    if(is_NULL_m(d)) {
+      d_cell <- rep(list(NULL), M)
     }
   }
   else {
-    cell_ind = cell_factor==lvls[cell_i]
-    N_l = if(M==1) sum(cell_ind) else rep(sum(cell_ind), M)
-    y_cell = if(is_vec(y)) y[cell_ind] else y[cell_ind, , drop=FALSE]
-    d_cell = if(is_vec(d)) d[cell_ind] else d[cell_ind, , drop=FALSE]
-    X_cell = X[cell_ind, , drop=FALSE]
+    cell_mask = cell_factor==lvls[cell_i]
+    N_l = if(M==1) sum(cell_mask) else rep(sum(cell_mask), M)
+    y_cell = if(is_vec(y)) y[cell_mask] else y[cell_mask, , drop=FALSE]
+    d_cell = if(is_vec(d)) d[cell_mask] else d[cell_mask, , drop=FALSE]
+    X_cell = X[cell_mask, , drop=FALSE]
   }
   return(list(y_cell, d_cell, X_cell, N_l))
 }
@@ -700,7 +702,7 @@ get_importance_weights <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es, 
   full_val = eval_mse_hat(y_es, X_es, d_es, partition = partition, est_plan=est_plan, sample="est")[1]
   
   if(K==1) {
-    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
+    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(X_range=partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
     if(verbosity>0) cat("Feature weights: Finished.\n")
     return(null_val - full_val)
   }
@@ -759,7 +761,7 @@ get_feature_interactions <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es
   full_val = eval_mse_hat(y_es, X_es, d_es, partition = partition, est_plan=est_plan, sample="est")[1]
   
   if(K==1) {
-    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
+    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(X_range=partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
     if(verbosity>0) cat("Feature weights: Finished.\nFeature interaction weights: Started.\nFeature interaction interactions: Finished.\n")
     return(list(delta_k=null_val - full_val, delta_k12=delta_k12))
   }
@@ -776,7 +778,7 @@ get_feature_interactions <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es
   }
   delta_k = new_val_k - full_val
   if(K==2) {
-    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
+    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(X_range=partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
     delta_k12 = matrix(null_val - full_val, ncol=2) + diag(rep(NA, K))
     colnames(delta_k12) = colnames(X)
     rownames(delta_k12) = colnames(X)
@@ -842,7 +844,7 @@ fit_estimate_partition_int <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_
   
   list[nfolds, folds_ret, foldids] = expand_fold_info(y_tr, cv_folds, m_mode)
   
-  if(!is.null(d))
+  if(!is_NULL_m(d))
     list[est_plan, y_tr, d_tr, y_es, d_es] = fit_and_residualize_m(est_plan, X_tr, y_tr, d_tr, foldids, y_es, X_es, d_es, m_mode, M, verbosity, dim_cat)
   
   if(verbosity>0) cat("Training partition on training set\n")
@@ -851,7 +853,7 @@ fit_estimate_partition_int <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_
   list[partition, is_obj_val_seq, complexity_seq, partition_i, partition_seq, split_seq, lambda, cv_foldid] = fit_ret
   
   if(verbosity>0) cat("Estimating cell statistics on estimation set\n")
-  list[cell_factor, cell_stats] = est_cell_stats(y_es, X_es, d_es, partition, est_plan=est_plan, alpha=alpha)
+  cell_stats = est_cell_stats(y_es, X_es, d_es, partition, est_plan=est_plan, alpha=alpha)
   
   full_stat_df = est_full_stats(y, X, d, est_plan, y_es=y_es, X_es=X_es, d_es=d_es)
   

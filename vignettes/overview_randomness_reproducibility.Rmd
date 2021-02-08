@@ -1,0 +1,34 @@
+---
+title: "Randomness and Reproducibility"
+author: "Brian Quistorff"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Randomness and Reproducibility}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  dev = "ragg_png"
+)
+```
+
+Randomization: This package should be able to be run with no randomness. With default/simple parameters the following places randomize but can be overridden.
+
+-   Generating train/est splits. Can be overridden by providing `tr_split`
+
+-   Generating trtr/trcv splits. Can be overridden by providing `cv_folds`
+
+-   Bumping samples. Can be overridden by providing list of samples for `bump_samples`
+
+-   Estimation plans: Provide ones ( `lm_est(lasso=TRUE,...)` and `grid_rf`) use `cv_folds`. User-made ones should too.
+
+```{r, message=FALSE}
+library(CausalGrid)
+```
+
+TODO: Finish

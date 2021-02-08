@@ -2,9 +2,12 @@
 % Please edit documentation in R/fit_estimate.R
 \name{estimated_partition}
 \alias{estimated_partition}
+\alias{is_estimated_partition}
 \title{Minimum estimated_partition class}
 \usage{
 estimated_partition(partition, cell_stats, ...)
+
+is_estimated_partition(x)
 }
 \arguments{
 \item{partition}{partition}
@@ -12,10 +15,19 @@ estimated_partition(partition, cell_stats, ...)
 \item{cell_stats}{cell_stats}
 
 \item{...}{Additional arguments}
+
+\item{x}{an R object}
 }
 \value{
 object of class estimated_partition
+
+True if x is an estimated_partition
 }
 \description{
-Minimum estimated_partition class
+Tests whether the object is an \code{estimated_partition} object.
 }
+\section{Functions}{
+\itemize{
+\item \code{is_estimated_partition}: is estimated_partition
+}}
+
