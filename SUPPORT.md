@@ -10,6 +10,9 @@ Notes on building:
 - To build the html help in `docs/` use `pkgdown::build_site()`.
 - Building copies everything over to temp dir and then deletes, so might want to move the large files (`project/sim.RData`) out to save time.
 
+Project:
+- If using MRAN you might get warnings from `renv` about `Revoutils`. You can create a rename `renv/settings.dcf.bak` to `renv/settings.dcf` and edit the line `external.libraries: C:\Program Files\Microsoft\R Open\R-X.X.X\library` with the right library version.
+
 
 # Support
 
