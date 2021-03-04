@@ -1,7 +1,7 @@
 ---
 title: "Tutorial: Beginner"
 author: "Brian Quistorff"
-date: "`r Sys.Date()`"
+date: "2021-03-04"
 output: 
   rmarkdown::html_vignette:
     df_print: kable
@@ -54,7 +54,7 @@ We can manually define a partition, "predict" which cell each observation would 
 ```{r}
 splits = list(partition_split(k=1, X_k_cut=0.4), partition_split(k=1, X_k_cut=0.5))
 my_part = partition_from_split_seq(splits, X=X)
-X_cell_ids = predict(my_part, new_X=X)
+X_cell_ids = predict(my_part, X)
 get_desc_df(my_part)
 ```
 

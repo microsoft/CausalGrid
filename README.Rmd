@@ -30,6 +30,7 @@ A simple example
 ```{r}
 # Generate some fake data
 library(CausalGrid)
+set.seed(1337)
 N= 500 #Number of obsevations
 K=3 #Number of features
 X = matrix(runif(N*K), ncol=K) #Features for splitting partition

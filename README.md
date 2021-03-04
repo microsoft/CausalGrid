@@ -1,4 +1,6 @@
 
+<!--- README.md generated from README.Rmd so only edit the .Rmd  --->
+
 # Project
 
 Tools for finding heterogeneous treatment effects (and means) based on
@@ -29,6 +31,7 @@ A simple example
 ``` r
 # Generate some fake data
 library(CausalGrid)
+set.seed(1337)
 N= 500 #Number of obsevations
 K=3 #Number of features
 X = matrix(runif(N*K), ncol=K) #Features for splitting partition
@@ -40,8 +43,8 @@ y = d*tau + rnorm(N, 0, 1) #outcome
 est_part0 = fit_estimate_partition(y, X, d, cv_folds=2)
 get_desc_df(est_part0) #summary table
 #>            X1 N_est param_ests         pval
-#> 1 <=0.5017553   139  -1.138928 3.550247e-09
-#> 2  >0.5017553   111   1.039283 7.201483e-08
+#> 1 <=0.5039703   121 -0.8322431 5.101454e-07
+#> 2  >0.5039703   129  0.6494370 5.876865e-04
 ```
 
 ## Documentation

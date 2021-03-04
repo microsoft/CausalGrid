@@ -1,7 +1,7 @@
 ---
 title: "Overview: Separate parameter types"
 author: "Brian Quistorff"
-date: "`r Sys.Date()`"
+date: "2021-03-04"
 output: 
   rmarkdown::html_vignette:
     df_print: kable
