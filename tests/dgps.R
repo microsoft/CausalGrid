@@ -1,30 +1,43 @@
+#' @export
+suppress_warnings <- function(.expr, msg) {
+  # Simplification of https://stackoverflow.com/questions/16517795/
+  eval.parent(substitute(
+    withCallingHandlers(.expr, warning = function(w) {
+      if (conditionMessage(w)==msg) {
+        invokeRestart("muffleWarning")
+      }
+    })
+  ))
+}
 
+
+#' @export
 exp_data <- function(n_4=25, dim_D=1, err_sd=0.01){
   #n_4 is n/4. We get this to make sure we have the same in each chunk
   n = n_4*4
   stopifnot(dim_D %in% c(0,1,2))
   #dim_D in {0,1,2}
-  X1 = cbind(runif(n_4, 0, .5), runif(n_4, 0, .5))
-  X2 = cbind(runif(n_4, 0, .5), runif(n_4, .5, 1))
-  X3 = cbind(runif(n_4, .5, 1), runif(n_4, 0, .5))
-  X4 = cbind(runif(n_4, .5, 1), runif(n_4, .5, 1))
+  X1 = cbind(stats::runif(n_4, 0, .5), stats::runif(n_4, 0, .5))
+  X2 = cbind(stats::runif(n_4, 0, .5), stats::runif(n_4, .5, 1))
+  X3 = cbind(stats::runif(n_4, .5, 1), stats::runif(n_4, 0, .5))
+  X4 = cbind(stats::runif(n_4, .5, 1), stats::runif(n_4, .5, 1))
   X = rbind(X1, X2, X3, X4)
   
   alpha = ifelse(X[,1]>.5, ifelse(X[,2]>.5,.5,.8), ifelse(X[,2]>.5, 2, -2))
   #alpha=0
-  y = alpha + rnorm(n,0,err_sd)
+  y = alpha + stats::rnorm(n,0,err_sd)
   if(dim_D) {
     if(dim_D==1) {
       beta = ifelse(X[,1]>.5, ifelse(X[,2]>.5,-1,2), ifelse(X[,2]>.5, 4, 6))
       #beta = ifelse(X[,1]>.5, -1,1)
-      d = matrix(rnorm(n), n, 1)
+      d = matrix(stats::rnorm(n), n, 1)
       y = y + beta*d
       colnames(d) <- "d"
     }
     else {
       beta1 = ifelse(X[,1]>.5,-1, 4)
       beta2 = ifelse(X[,2]>.5, 2, 6)
-      d = matrix(rnorm(2*n), n, 2)
+      d = matrix(stats::rnorm(2*n), n, 2)
       y = y + beta1*d[,1] + beta2*d[,2]
       colnames(d) = c("d1", "d2")
     }
@@ -47,6 +60,7 @@ mix_data_y <- function(n=200) {
   return(list(y=y, X=X))
 }
 
+#' @export
 mix_data_d <- function(n=200) {
   X = data.frame(X1=c(rep(0, n/4), rep(1, n/4), rep(0, n/4), rep(1, n/4)), 
                  X2=factor(c(rep("A", n/2), rep("B", n/4), rep("C", n/4))))
@@ -73,6 +87,7 @@ two_groups_data_int <- function(){
   return(list(y=y, X=X))
 }
 
+#' @export
 AI_sim <- function(n=500, design=1, err_sd=0.01) {
   w = rbinom(n, 1, 0.5)
   K = c(2, 10, 20)[design]
@@ -95,6 +110,7 @@ AI_sim <- function(n=500, design=1, err_sd=0.01) {
   return(list(y=Y, X=X, w=w, kappa=kappa))
 }
 
+#' @export
 XOR_sim <- function(n=500, const_kappa=TRUE, err_sd=0.01) {
   w = rbinom(n, 1, 0.5)
   K=2

@@ -10,7 +10,7 @@ library(doSNOW)
 library(gsubfn)
 library(CausalGrid)
 
-library(rprojroot)
+loadNamespace(rprojroot)
 ```
 
 ```{r}

@@ -1,6 +1,6 @@
 # Building the project
 Requirements
-- R (tested on v3.5 on Windows)
+- R (requires at least 3.6, tested on v4.0 on Windows)
 
 Notes on building:
 - On Windows you will need RTools (probably at least v3.5)

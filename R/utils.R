@@ -33,10 +33,11 @@ num_cells <- function(obj) {
 #'
 #' @return data.frame with columns: partitioning columns
 #' @export
-get_desc_df <- function(obj, cont_bounds_inf=TRUE, do_str=FALSE, drop_unsplit=FALSE, 
+get_desc_df <- function(obj, cont_bounds_inf=TRUE, do_str=TRUE, drop_unsplit=TRUE, 
                         digits=NULL, unsplit_cat_star=TRUE, ...) {
   UseMethod("get_desc_df", obj)
 } 
+
 
 # General Utils ----------------
 
@@ -61,7 +62,8 @@ get_dim_cat <- function(X) {
 
 update_names <- function(X) {
   if(is.null(colnames(X))){
-    colnames(X) = paste("X", 1:ncol(X), sep="")
+    if(ncol(X)>0)
+      colnames(X) = paste("X", seq_len(ncol(X)), sep="")
   } 
   return(X)
 }
@@ -89,6 +91,11 @@ replace_k_factor <- function(base_facts, k, new_fact) {
 
 is_factor_dim_k <- function(X, k) {
   return(is.factor(X[, k]))
+}
+
+lcl_interaction <- function(facts, n=NA, drop=FALSE) {
+  if(length(facts)>0) return(interaction(facts, drop=drop))
+  return(factor(rep("|", n)))
 }
 
 
@@ -213,7 +220,7 @@ ensure_good_X <- function(X) {
     if (inherits(X, "tbl")) X <- as.data.frame(X) # tibble's return tibble (rather than vector) for X[,k], making is.factor(X[,k]) and others fail. Could switch to doing X[[k]] for df-like objects
     for (k in seq_len(ncol(X))) are_equal(mode(X[[k]]), "numeric")
   }
-  assert_that(ncol(X) >= 1, msg="X has no columns.")
+  #assert_that(ncol(X) >= 1, msg="X has no columns.") #we allow this now
   return(X)
 }
 
@@ -459,11 +466,11 @@ Param_Est_m <- function(est_plan, y_cell, d_cell, X_cell, sample=sample, ret_var
 }
 
 
-interaction_m <- function(facts, M_mult=FALSE, drop=FALSE) {
+interaction_m <- function(facts, M_mult=FALSE, n=NA, drop=FALSE) {
   if(!M_mult) {
-    return(interaction(facts, drop=drop))
+    return(lcl_interaction(facts, n=n, drop=drop))
   }
-  return(lapply(facts, function(f) interaction(f, drop=drop)))
+  return(lapply(facts, function(f) lcl_interaction(f, n=n, drop=drop)))
 }
 
 interaction2_m <- function(f1, f2, M_mult=FALSE, drop=FALSE) {

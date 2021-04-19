@@ -1,6 +1,4 @@
-library(ggplot2)
-library(causalTree)
-
+#' @export
 rpart_label_component <- function(object) {
   #TODO: Didn't copy the part with categorical variables, so this might not work then. Could do that.
   #Copied from print.rpart
@@ -34,6 +32,7 @@ rpart_label_component <- function(object) {
   list(labels_var, labels_num)
 }
 
+#' @export
 plot_partition.rpart <- function(yvals, varnames, x_min, x_max, y_min, y_max, labels_var, labels_num, depth) {
   nnode = length(depth)
   if(nnode<=1) {
@@ -76,6 +75,7 @@ plot_partition.rpart <- function(yvals, varnames, x_min, x_max, y_min, y_max, la
 #' @param cs color_list
 #'
 #' @return ggplot fig
+#' @export
 plot_2D_partition.rpart <- function(cart_fit, X_range) {
   #Note: plotmo doesn't work well because it's just a grid and doesn't find the boundaries
   varnames = names(cart_fit$ordered)
@@ -92,6 +92,7 @@ plot_2D_partition.rpart <- function(cart_fit, X_range) {
   return(plt)
 }
 
+#' @export
 ct_cv_tree <- function(form, data, treatment, index_tr=NULL, tr_split=NA, split.Honest=TRUE, cv.Honest=TRUE, 
                        minsize=2L, split.Bucket=FALSE, bucketNum=5, xval=10) {
   N = nrow(data)
@@ -125,10 +126,12 @@ ct_cv_tree <- function(form, data, treatment, index_tr=NULL, tr_split=NA, split.
   return(opTree)
 }
 
+#' @export
 num_cells.rpart <- function(obj){
   sum(obj$frame[["var"]]=='<leaf>')
 }
 
+#' @export
 ct_nsplits_by_dim <- function(obj, ndim) {
   library(stringr)
   strs = paste(obj$frame$var[obj$frame$var!="<leaf>"])
@@ -143,6 +146,7 @@ ct_nsplits_by_dim <- function(obj, ndim) {
 }
 
 #Just nodes and treatment effects
+#' @export
 ct_desc <- function(ct_m, tex_table=TRUE, digits=3) {
   ct_m_desc <- capture.output(print(ct_m))
   ct_m_desc = ct_m_desc[-c(1:5)]

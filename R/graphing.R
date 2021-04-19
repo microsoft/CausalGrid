@@ -23,7 +23,7 @@ plot.estimated_partition <- function(x, X_names_2D=NULL, ...) {
     print("Nothing to graph as no heterogeneity")
     return(NULL)
   }
-  desc_range_df = get_desc_df(x$partition, drop_unsplit=TRUE, cont_bounds_inf=FALSE)
+  desc_range_df = get_desc_df(x$partition, do_str=FALSE, drop_unsplit=TRUE, cont_bounds_inf=FALSE)
   if(n_split_dims==1) {
     desc_range_df = do.call(cbind, lapply(desc_range_df, function(c) as.data.frame(t(matrix(unlist(c), nrow=2)))))
     desc_range_df['ymin'] = 0

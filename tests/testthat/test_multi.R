@@ -1,13 +1,10 @@
 # To run in the command-line with load_all: then run the code in the first if(FALSE), subsequent runs just run that last line of the False block
 
 library(testthat)
-library(rprojroot)
-testthat_root_dir <- rprojroot::find_testthat_root_file() #R cmd check doesn't copy over git and RStudio proj file
 
 if(FALSE) { #Run manually to debug
-  library(rprojroot)
-  testthat_root_dir <- rprojroot::find_testthat_root_file()
-  debugSource(paste0(testthat_root_dir,"/test_multi.R"))
+  loadNamespace(rprojroot)
+  debugSource(paste0(rprojroot::find_testthat_root_file(),"/test_multi.R"))
 }
 
 library(CausalGrid)

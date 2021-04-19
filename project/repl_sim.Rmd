@@ -16,7 +16,7 @@ Notes:
 ```{r, message=FALSE}
 library(gsubfn)
 library(devtools)
-library(CausalGrid)
+#library(CausalGrid)
 library(causalTree)
 library(doSNOW)
 library(foreach)
@@ -26,10 +26,10 @@ library(glmnet)
 library(ranger)
 library(gridExtra)
 library(ggplot2)
-library(rprojroot)
+loadNamespace(rprojroot)
 root_dir <- rprojroot::find_package_root_file()
-source(paste0(root_dir,"/project/ct_utils.R"))
-source(paste0(root_dir,"/tests/dgps.R"))
+box::use(../tests/dgps)
+box::use(../project/ct_utils)
 ```
 
 ```{r paths}

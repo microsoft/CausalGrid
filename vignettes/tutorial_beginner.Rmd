@@ -55,7 +55,7 @@ We can manually define a partition, "predict" which cell each observation would 
 splits = list(partition_split(k=1, X_k_cut=0.4), partition_split(k=1, X_k_cut=0.5))
 my_part = partition_from_split_seq(splits, X=X)
 X_cell_ids = predict(my_part, X)
-get_desc_df(my_part)
+get_desc_df(my_part, do_str=TRUE)
 ```
 
 To look at subgroup heterogeneity of a treatment effect, one may have a good prior about the partition (what dimensions of `X` to look across and what cut-values to use). One can do this either with the generated cell ids or with a built-in function.
@@ -93,8 +93,8 @@ Here is is in action. To save compoute time, avoid cells with too few observatio
 breaks = 5 
 #Otherwise we can explicitly list the potential splits to evaluate.
 breaks = rep(list(seq(breaks)/(breaks+1)), K)
-est_part = fit_estimate_partition(y, X, d, breaks_per_dim=breaks, cv_folds=2)
-get_desc_df(est_part0)
+est_part = fit_estimate_partition(y, X, d, breaks_per_dim=breaks, cv_folds=2, importance_type = "interaction")
+get_desc_df(est_part)
 ```
 
 We can also visualize the results
@@ -133,16 +133,20 @@ Essentially no.
 A case where there could be substitution is when two variable proxy for the same underlying mechanism.
 ```{r}
 X_subst = cbind(X[,1], X[,1]+rnorm(N,0,0.5))
-est_part_subst = fit_estimate_partition(y, X_subst, d, breaks_per_dim=breaks, cv_folds=2)
+est_part_subst = fit_estimate_partition(y, X_subst, d, breaks_per_dim=breaks, cv_folds=2, importance_type = "interaction")
 est_part_subst$interaction_weights
 ```
 
 A case where there are complimentarities:
 ```{r}
-tau_int = as.integer(X[,1]>0.5 & X[,2]>0.5)*1
-y_int = tau_int*d + rnorm(N)
-est_part_int = fit_estimate_partition(y_int, X, d, breaks_per_dim=breaks, cv_folds=2)
-est_part_int$interaction_weights
+true_part = partition_from_split_seq(list(partition_split(1,0.5), partition_split(2,0.5)), X)
+true_obs_info = merge(data.frame(c=unclass(predict(true_part, X)), id=1:N), data.frame(c=1:4, tau=c(0,1,1,3)))
+tau_int = true_obs_info[order(true_obs_info$id),][["tau"]]
+y_int = tau_int*d + rnorm(N, 0, err_sd)
+X_int = X[,c(1,2)]
+est_part_int = fit_estimate_partition(y_int, X_int, d, breaks_per_dim=breaks, partition_i = 3, importance_type = "interaction") #
+print(est_part_int)
+print(est_part_int$interaction_weights)
 ```
 
 ## Multiple hypothesis testing

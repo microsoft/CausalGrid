@@ -30,7 +30,7 @@ grid_partition <- function(X=NULL, X_range=NULL, varnames=NULL) {
   K = length(X_range)
   s_by_dim = vector("list", length=K) #splits_by_dim(s_seq) #stores Xk_val's
   dim_cat = c()
-  for (k in 1:K) {
+  for (k in seq_len(K)) {
     if(mode(X_range[[k]])=="character") { 
       dim_cat = c(dim_cat, k) 
       s_by_dim[[k]] = list()
@@ -80,11 +80,11 @@ get_X_range <- function(X) {
     if(inherits(X, "tbl")) X = as.data.frame(X) #tibble's return tibble (rather than vector) for X[,k], making is.factor(X[,k]) and others fail. Could switch to doing X[[k]] for df-like objects
     for(k in seq_len(ncol(X))) are_equal(mode(X[[k]]), "numeric")
   }
-  assert_that(ncol(X)>=1, msg="X has no columns")
+  
+  #assert_that(ncol(X)>=1, msg="X has no columns") #We allow this now
   
   X_range = list()
-  K = ncol(X)
-  for(k in 1:K) {
+  for(k in seq_len(ncol(X))) {
     X_k = X[, k]
     X_range[[k]] = if(is.factor(X_k)) levels(X_k) else range(X_k) #c(min, max)
   }
@@ -106,7 +106,7 @@ get_X_range <- function(X) {
 #' @export
 predict.grid_partition <- function(object, X, X_range=NULL, ...) {
   facts = get_factors_from_partition(object, X, X_range=X_range)
-  return(interaction_m(facts, is_sep_sample(X)))
+  return(interaction_m(facts, is_sep_sample(X), nrow(X)))
 }
 
 
@@ -145,7 +145,7 @@ print.grid_partition <- function(x, do_str=TRUE, drop_unsplit=TRUE, digits=NULL,
 #' 
 #' @return data.frame with columns: partitioning columns
 #' @export
-get_desc_df.grid_partition <- function(obj, cont_bounds_inf=TRUE, do_str=FALSE, drop_unsplit=FALSE, 
+get_desc_df.grid_partition <- function(obj, cont_bounds_inf=TRUE, do_str=TRUE, drop_unsplit=TRUE, 
                                        digits=NULL, unsplit_cat_star=TRUE, ...) {
   #To check: digits
   assert_that(is.flag(cont_bounds_inf), is.flag(do_str), is.flag(drop_unsplit), is.flag(unsplit_cat_star), msg="One (cont_bounds_inf, do_str, drop_unsplit, unsplit_cat_star)of are not flags.")
@@ -323,7 +323,7 @@ get_factors_from_partition <- function(partition, X, X_range=NULL) {
   }
   else {
     K = ncol(X)
-    for(k in 1:K) {
+    for(k in seq_len(K)) {
       factors_by_dim[[k]] = get_factors_from_splits_dim(X[, k], X_range[[k]], partition$s_by_dim[[k]])
     }
   }
@@ -472,13 +472,14 @@ fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, 
   assert_that(inherits(est_plan, "estimator_plan") || (is.list(est_plan) && inherits(est_plan[[1]], "estimator_plan")), msg="estimator_plan argument (or it's first element) doesn't inherit from estimator_plan class") 
   #verbosity can be negative if decrementd from a fit_estimate call
   list[M, m_mode, N, K] = get_sample_type(y, X, d, checks=TRUE)
+  assert_that(sum(N)>0, msg="Need rows to able to estimate")
   if(is.null(d) & m_mode==DS.MULTI_SAMPLE) d = rep(list(NULL), M)
   if(is_sep_sample(X) && length(cv_folds)>1) {
     assert_that(is.list(cv_folds) && length(cv_folds)==M, msg="When separate samples and length(cv_folds)>1, need is.list(cv_folds) && length(cv_folds)==M.")
   }
   check_M_K(M, m_mode, K, X_aux, d_aux)
   do_cv = is.na(partition_i) && (is.null(potential_lambdas) || length(potential_lambdas)>0)
-  do_bump = length(bump_samples)>1 || bump_samples > 0
+  do_bump = (length(bump_samples)>1 || bump_samples > 0) && K>0
   if(!do_cv) assert_that(bump_complexity$doCV==FALSE, msg="When not doing CV, can't including bumping in CV.")
   if(do_bump && bump_complexity$doCV) {
     if(length(bump_samples==1)) bump_samples = list(bump_samples, bump_samples)
@@ -486,6 +487,7 @@ fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, 
     bump_samples = bump_samples[[2]]
   }
   else cv_bump_samples=0
+  if(K==0) partition_i=1
   
   if(is.null(X_range)) X_range = get_X_range(X)
   if(!is.list(breaks_per_dim) && length(breaks_per_dim)==1) breaks_per_dim = get_quantile_breaks(X, X_range, g=breaks_per_dim)
@@ -571,12 +573,12 @@ fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, 
       partition_b = b_ret$partition_seq[[partition_i_b]]
       
       obj_ret = obj_fn(y, X, d, N_est=N_est, partition=partition_b, est_plan=est_plan, sample="trtr")
-      if(obj_ret[2]>0 | obj_ret[3]>0) next #N_cell_empty, N_cell_error
+      if(obj_ret[["N_cell_empty"]]>0 | obj_ret[["N_cell_error"]]>0) next
       if(bump_complexity$incl_comp_in_pick) {
-        bump_val = obj_ret[1] + lambda*b_complexity_seq[partition_i_b]
+        bump_val = obj_ret[["val"]] + lambda*b_complexity_seq[partition_i_b]
       }
       else {
-        bump_val = obj_ret[1]
+        bump_val = obj_ret[["val"]]
       }
       
       if(bump_val < best_val){
@@ -597,7 +599,7 @@ fit_partition <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, max_splits=Inf, 
       } 
       complexity_seq = sapply(partition_seq, num_cells) - 1
       is_obj_val_seq = sapply(partition_seq, function(p){
-        obj_fn(y, X, d, N_est=N_est, partition=p, est_plan=est_plan, sample="trtr")[1]
+        obj_fn(y, X, d, N_est=N_est, partition=p, est_plan=est_plan, sample="trtr")[["val"]]
       })
     }
     else { 
@@ -639,7 +641,7 @@ get_quantile_breaks <- function(X, X_range, g=20, type=3) {
   
   breaks_per_dim = list()
   K = ncol(X)
-  for(k in 1:K) {
+  for(k in seq_len(K)) {
     X_k = X[,k]
     if(is.factor(X_k)) {
       breaks_per_dim[[k]] = c(0) #Dummy
@@ -729,7 +731,7 @@ get_usable_break_points <- function(breaks_per_dim, X, X_range, dim_cat, mid_poi
   #old code
   if(is.null(breaks_per_dim)) {
     breaks_per_dim = list()
-    for(k in 1:K) {
+    for(k in seq_len(K)) {
       if(!k %in% dim_cat) {
         u = unique(sort(X[, k]))
         if(mid_point) {
@@ -745,7 +747,7 @@ get_usable_break_points <- function(breaks_per_dim, X, X_range, dim_cat, mid_poi
     }
   }
   else { #make sure they didn't include the lowest point
-    for(k in 1:K) {
+    for(k in seq_len(K)) {
       if(!k %in% dim_cat) {
         n_k = length(breaks_per_dim[[k]])
         if(breaks_per_dim[[k]][n_k]==X_range[[k]][2]) {
@@ -828,9 +830,7 @@ get_window_cont <- function(s_by_dim_k, X_k_range) {
 }
 
 gen_holdout_interaction <- function(factors_by_dim, k) {
-  if(length(factors_by_dim)>1)
-    return(interaction(factors_by_dim[-k]))
-  return(factor(rep("|", length(factors_by_dim[[1]]))))
+  return(lcl_interaction(factors_by_dim[-k], length(factors_by_dim[[1]])))
 }
 
 n_breaks_k <- function(breaks_per_dim, k, partition, X_range) {
@@ -941,12 +941,12 @@ fit_partition_full_k <- function(k, y, X_d, d, X_range, pb, debug, valid_breaks,
       if(debug) cat(paste("k", k, ". X_k", X_k_cut, "\n"))
       obj_ret = obj_fn(y, X_d, d, N_est=N_est, cell_factor_tr = tent_cell_factor, debug=debug, est_plan=est_plan, 
                        sample="trtr")
-      if(obj_ret[3]>0) { #don't need to check [2] (empty cells) as we already did that
+      if(obj_ret[["N_cell_error"]]>0) { #don't need to check [2] (empty cells) as we already did that
         #cat("Estimation errors\n")
         valid_breaks_k[[1]][X_k_cut_i] = FALSE
         next
       }
-      val = obj_ret[1]
+      val = obj_ret[["val"]]
       stopifnot(is.finite(val))
       prev_split_checked = X_k_cut
       
@@ -1009,12 +1009,12 @@ fit_partition_full_k <- function(k, y, X_d, d, X_range, pb, debug, valid_breaks,
         if(debug) cat(paste("k", k, ". X_k", win_split_val, "\n"))
         obj_ret = obj_fn(y, X_d, d, N_est=N_est, cell_factor_tr = tent_cell_factor, debug=debug, est_plan=est_plan, 
                          sample="trtr")
-        if(obj_ret[3]>0) { #don't need to check [2] (empty cells) as we already did that
+        if(obj_ret[["N_cell_error"]]>0) { #don't need to check (empty cells) as we already did that
           #cat("Estimation errors\n")
           valid_breaks_k[[window_i]][win_split_i] = FALSE
           next
         }
-        val = obj_ret[1]
+        val = obj_ret[["val"]]
         stopifnot(is.finite(val))
         
         
@@ -1062,7 +1062,7 @@ fit_partition_full <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, X_range, ma
   breaks_per_dim = get_usable_break_points(breaks_per_dim, X, X_range, partition$dim_cat)
   valid_breaks = vector("list", length=K) #splits_by_dim(s_seq) #stores Xk_val's
   
-  for(k in 1:K) {
+  for(k in seq_len(K)) {
     n_split_breaks_k = n_breaks_k(breaks_per_dim, k, partition, X_range)
     valid_breaks[[k]] = list(rep(TRUE, n_split_breaks_k))
     if(!is.na(nsplits_k_warn_limit) && n_split_breaks_k>nsplits_k_warn_limit) warning(paste("Warning: Many splits (", n_split_breaks_k, ") along dimension", k, "\n"))
@@ -1078,11 +1078,12 @@ fit_partition_full <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, X_range, ma
   } 
   split_i = 1
   seq_val = c()
-  obj_ret = obj_fn(y, X, d, N_est=N_est, cell_factor_tr = interaction_m(factors_by_dim, is_sep_sample(X)), est_plan=est_plan, sample="trtr")
-  if(obj_ret[3]>0 || !is.finite(obj_ret[1])) {
+  obj_ret = obj_fn(y, X, d, N_est=N_est, cell_factor_tr = interaction_m(factors_by_dim, is_sep_sample(X), nrow(X)), 
+                   est_plan=est_plan, sample="trtr")
+  if(obj_ret[["N_cell_error"]]>0 || !is.finite(obj_ret[["val"]])) {
     stop("Estimation error with initial partition")
   }
-  seq_val[1] = obj_ret[1]
+  seq_val[1] = obj_ret[["val"]]
   partition_seq = list()
   split_seq = list()
   partition_seq[[1]] = partition
@@ -1097,7 +1098,7 @@ fit_partition_full <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, X_range, ma
     if(split_i>max_splits) break
     if(num_cells(partition)==max_cells) break
     n_cuts_k = rep(0, K)
-    for(k in 1:K) {
+    for(k in seq_len(K)) {
       n_cuts_k[k] = n_breaks_k(breaks_per_dim, k, partition, X_range)
     }
     n_cuts_total = sum(n_cuts_k)
@@ -1114,11 +1115,11 @@ fit_partition_full <- function(y, X, d=NULL, X_aux=NULL, d_aux=NULL, X_range, ma
                   min_size=min_size, min_size_aux=min_size_aux, obj_fn=obj_fn, N_est=N_est, est_plan=est_plan, 
                   breaks_per_dim=breaks_per_dim), list(...))
     
-    col_rets = my_apply(1:K, fit_partition_full_k, verbosity, pr_cl, params)
+    col_rets = my_apply(seq_len(K), fit_partition_full_k, verbosity, pr_cl, params)
     
     best_new_val = Inf
     best_new_split = NULL
-    for(k in 1:K) {
+    for(k in seq_len(K)) {
       col_ret = col_rets[[k]]
       search_ret = col_ret[[1]]
       valid_breaks[[k]] = col_ret[[2]]
@@ -1258,7 +1259,7 @@ cv_pick_lambda_f <- function(f, y, X_d, d, folds_ret, nfolds, potential_lambdas,
       for(b in 1:length(cvtr_fit_bumps)) {
         #partition_seq=partition_seq, is_obj_val_seq
         cvtr_fit_bumps[[b]]$is_obj_val_seq = sapply(cvtr_fit_bumps[[b]]$partition_seq, function(p){
-          obj_fn(y_f_tr, X_f_tr, d_f_tr, partition=p, est_plan=est_plan, sample="trtr")[1]
+          obj_fn(y_f_tr, X_f_tr, d_f_tr, partition=p, est_plan=est_plan, sample="trtr")[["val"]]
         })
       }
     }
@@ -1286,7 +1287,7 @@ eval_lambdas <- function(obj_fn, est_plan, potential_lambdas, cvtr_fit, y_f_tr, 
       if(debug) cat(paste("s_by_dim", paste(part$s_by_dim, collapse=" "), "\n"))
       obj_ret = obj_fn(y_f_tr, X_f_tr, d_f_tr, y_f_cv, X_f_cv, d_f_cv, N_est=N_est, partition=part, debug=debug, 
                        est_plan=est_plan, sample="trcv")
-      oos_obj_val = obj_ret[1]
+      oos_obj_val = obj_ret[["val"]]
       partition_oos_cache[partition_i] = oos_obj_val
     }
     lambda_oos[lambda_i] = partition_oos_cache[partition_i]

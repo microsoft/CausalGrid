@@ -89,6 +89,7 @@ fit_estimate_partition <- function(y, X, d=NULL, tr_split = 0.5, max_splits=Inf,
   if(is_sep_sample(X) && length(tr_split)>1) {
     assert_that(is.list(tr_split) && length(tr_split)==M, msg="When separate sample & length(tr_split)>1, need is.list(tr_split) && length(tr_split)==M")
   }
+  assert_that(sum(N_tr)>0, msg="Need rows to able to estimate")
   X = ensure_good_X(X)
   X = update_names_m(X)
   X_range = get_X_range(X)
@@ -351,6 +352,7 @@ test_any_sign_effect <- function(obj, check_negative=T, method="fdr", alpha=0.05
 est_cell_stats <- function(y, X, d=NULL, partition=NULL, cell_factor=NULL, estimator_var=NULL, 
                            est_plan=NULL, alpha=0.05) {
   list[M, m_mode, N_tr, K] = get_sample_type(y, X, d, checks=TRUE)
+  assert_that(sum(N_tr)>0, msg="Need rows to able to estimate")
   X = ensure_good_X(X)
   
   if(is.null(est_plan)) {
@@ -403,6 +405,7 @@ est_cell_stats <- function(y, X, d=NULL, partition=NULL, cell_factor=NULL, estim
 #' @export
 est_full_stats <- function(y, X, d, est_plan, y_es=NULL, X_es=NULL, d_es=NULL, index_tr=NULL, alpha=0.05) {
   list[M, m_mode, N_tr, K] = get_sample_type(y, X, d, checks=TRUE)
+  assert_that(sum(N_tr)>0, msg="Need rows to able to estimate")
   X = ensure_good_X(X)
   
   if(is.null(y_es)) {
@@ -485,7 +488,7 @@ predict.estimated_partition <- function(object, new_X, new_d = NULL, type = "eff
 #' @param warn_on_error  T/F for whether to display a warning when estimation fails (NA values returned)
 #' @param sample Passed to \code{\link{est_params}}
 
-#' @return \code{c(val, N_cell_empty, N_cell_error)}
+#' @return \code{c(val, N_cell_empty, N_cell_error)} val will be negative (and we're typically minimizing)
 #' @export
 #' @keywords internal
 eval_mse_hat <-function(y_tr, X_tr, d_tr, y_te=NULL, X_te=NULL, d_te=NULL, N_est, partition=NULL, cell_factor_tr=NULL, cell_factor_te=NULL, est_plan=NULL, estimator=NULL, debug=FALSE, 
@@ -534,7 +537,7 @@ eval_mse_hat <-function(y_tr, X_tr, d_tr, y_te=NULL, X_te=NULL, d_te=NULL, N_est
   }
   val = -1/N_eff*sum(cell_contribs) # Use N_eff to remove from average given errors
   if(debug) print(paste("cell sums", val))
-  return(c(val, N_cell_empty, N_cell_error))
+  return(c(val=val, N_cell_empty=N_cell_empty, N_cell_error=N_cell_error))
 }
 
 #Version of the above if we've already estimated the table.
@@ -688,8 +691,8 @@ get_importance_weights_full_k <- function(k_i, to_compute, X_d, y, d, X_tr, y_tr
   X_tr_k = drop_col_k_m(X_tr, k)
   X_es_k = drop_col_k_m(X_es, k)
   main_ret = fit_estimate_partition_int(X_k, y, d, X_tr_k, y_tr, d_tr, y_es, X_es_k, d_es, X_range[-k], breaks_per_dim=breaks_per_dim[-k], verbosity=verbosity, nsplits_k_warn_limit=NA, ...)
-  nk_val = eval_mse_hat(y_es, X_es_k, d_es, partition=main_ret$partition, est_plan=main_ret$est_plan, sample="est")[1] #use oos version instead of main_ret$is_obj_val_seq[partition_i]
-  return(list(nk_val, main_ret$partition$nsplits_by_dim))
+  nk_val = eval_mse_hat(y_es, X_es_k, d_es, partition=main_ret$partition, est_plan=main_ret$est_plan, sample="est")[["val"]] #use oos version instead of main_ret$is_obj_val_seq[partition_i]
+  return(list(nk_val, main_ret))
 }
 
 # Just use mse_hat as we're working not on the Tr sample, but the est sample
@@ -698,11 +701,11 @@ get_importance_weights_full_k <- function(k_i, to_compute, X_d, y, d, X_tr, y_tr
 get_importance_weights <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es, X_range, breaks_per_dim, partition, est_plan, type, verbosity, pr_cl, ...) {
   if(verbosity>0) cat("Feature weights: Started.\n")
   K = length(X_range)
-  if(sum(partition$nsplits_by_dim)==0) return(rep(0, K))
-  full_val = eval_mse_hat(y_es, X_es, d_es, partition = partition, est_plan=est_plan, sample="est")[1]
+  if(sum(partition$nsplits_by_dim)==0) return(rep(0, K)) #also catches K==0
+  full_val = eval_mse_hat(y_es, X_es, d_es, partition = partition, est_plan=est_plan, sample="est")[["val"]]
   
   if(K==1) {
-    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(X_range=partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
+    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(X_range=partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[["val"]]
     if(verbosity>0) cat("Feature weights: Finished.\n")
     return(null_val - full_val)
   }
@@ -713,7 +716,7 @@ get_importance_weights <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es, 
     for(k in 1:K) {
       if(partition$nsplits_by_dim[k]>0) {
         cell_factor_nk = gen_holdout_interaction_m(factors_by_dim, k, is_sep_sample(X_tr))
-        new_vals[k] = eval_mse_hat(y_es, X_es, d_es, cell_factor_tr = cell_factor_nk, est_plan=est_plan, sample="est")[1]
+        new_vals[k] = eval_mse_hat(y_es, X_es, d_es, cell_factor_tr = cell_factor_nk, est_plan=est_plan, sample="est")[["val"]]
       }
     }
     if(verbosity>0) cat("Feature weights: Finished.\n")
@@ -743,8 +746,8 @@ get_feature_interactions_k12 <- function(ks_i, to_compute, X_d, y, d, X_tr, y_tr
   X_tr_k = drop_col_k_m(X_tr, ks)
   X_es_k = drop_col_k_m(X_es, ks)
   main_ret = fit_estimate_partition_int(X_k, y, d, X_tr_k, y_tr, d_tr, y_es, X_es_k, d_es, X_range[-ks], breaks_per_dim=breaks_per_dim[-ks], verbosity=verbosity, nsplits_k_warn_limit=NA, ...)
-  nk_val = eval_mse_hat(y_es, X_es_k, d_es, partition=main_ret$partition, est_plan=main_ret$est_plan, sample="est")[1] #use oos version instead of main_ret$is_obj_val_seq[partition_i]
-  return(nk_val)
+  nk_val = eval_mse_hat(y_es, X_es_k, d_es, partition=main_ret$partition, est_plan=main_ret$est_plan, sample="est")[["val"]] #use oos version instead of main_ret$is_obj_val_seq[partition_i]
+  return(list(nk_val, main_ret))
   
 }
 
@@ -753,15 +756,15 @@ get_feature_interactions <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es
   if(verbosity>0) cat("Feature weights: Started.\n")
   K = length(X_range)
   dnames = list(colnames(X), colnames(X))
-  delta_k12 = matrix(as.integer(diag(rep(NA, K))), ncol=K, dimnames=dnames) #dummy for K<3 cases
-  if(sum(partition$nsplits_by_dim)==0){ 
+  if(sum(partition$nsplits_by_dim)==0){ #also catches K==0
     if(verbosity>0) cat("Feature weights: Finished.\nFeature interaction weights: Started.\nFeature interaction interactions: Finished.\n")
+    delta_k12 = matrix(as.integer(diag(rep(NA, K))), ncol=K, dimnames=dnames)
     return(list(delta_k=rep(0, K), delta_k12=delta_k12))
   }
-  full_val = eval_mse_hat(y_es, X_es, d_es, partition = partition, est_plan=est_plan, sample="est")[1]
+  full_val = eval_mse_hat(y_es, X_es, d_es, partition = partition, est_plan=est_plan, sample="est")[["val"]]
   
   if(K==1) {
-    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(X_range=partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
+    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(X_range=partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[["val"]]
     if(verbosity>0) cat("Feature weights: Finished.\nFeature interaction weights: Started.\nFeature interaction interactions: Finished.\n")
     return(list(delta_k=null_val - full_val, delta_k12=delta_k12))
   }
@@ -777,9 +780,9 @@ get_feature_interactions <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es
     new_val_k[k] = rets_k[[k_i]][[1]]
   }
   delta_k = new_val_k - full_val
-  if(K==2) {
-    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(X_range=partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[1]
-    delta_k12 = matrix(null_val - full_val, ncol=2) + diag(rep(NA, K))
+  if(K==2) { #special case as then there's no X's
+    null_val = eval_mse_hat(y_es, X_es, d_es, partition = grid_partition(X_range=partition$X_range, partition$varnames), est_plan=est_plan, sample="est")[["val"]]
+    delta_k12 = matrix((null_val - full_val) - sum(delta_k), nrow=2, ncol=2) + diag(rep(NA, K))
     colnames(delta_k12) = colnames(X)
     rownames(delta_k12) = colnames(X)
     if(verbosity>0) cat("Feature weights: Finished.\nFeature interaction weights: Started.\nFeature interaction interactions: Finished.\n")
@@ -799,7 +802,7 @@ get_feature_interactions <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es
     }
     else {
       k1_i = which(to_compute_k==k1)
-      nsplits_by_dim_k1= rets_k[[k1_i]][[2]]
+      nsplits_by_dim_k1= rets_k[[k1_i]][[2]]$partition$nsplits_by_dim
       for(k2 in (k1+1):K) {
         if(nsplits_by_dim_k1[k2-1]==0) { #nsplits_by_dim_k1 is missing k1 so drop k2 back one
           new_val_k12[k1,k2] = new_val_k[k1]
@@ -813,11 +816,11 @@ get_feature_interactions <- function(X, y, d, X_tr, y_tr, d_tr, y_es, X_es, d_es
   }
   params = c(list(to_compute=to_compute, X_d=X, y=y, d=d, X_tr=X_tr, y_tr=y_tr, d_tr=d_tr, y_es=y_es, X_es=X_es, d_es=d_es, X_range=X_range, breaks_per_dim=breaks_per_dim, est_plan=est_plan, verbosity=verbosity-1), 
              list(...))
-  rets_k12 = my_apply(1:length(to_compute), get_feature_interactions_k12, verbosity==1 || !is.null(pr_cl), pr_cl, params)
-  for(ks_i in 1:length(to_compute)) {
+  rets_k12 = my_apply(seq_along(to_compute), get_feature_interactions_k12, verbosity==1 || !is.null(pr_cl), pr_cl, params)
+  for(ks_i in seq_along(to_compute)) {
     k1 = to_compute[[ks_i]][1]
     k2 = to_compute[[ks_i]][2]
-    new_val = rets_k12[[ks_i]]
+    new_val = rets_k12[[ks_i]][[1]]
     new_val_k12[k1, k2] = new_val
     new_val_k12[k2, k1] = new_val
   }
