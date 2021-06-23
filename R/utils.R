@@ -454,7 +454,7 @@ apply_mask_m <- function(data, mask, M_mult) {
   return(mapply(function(data_s, mask_s) row_sample(data_s, mask_s), data, mask, SIMPLIFY=FALSE))
 }
 
-any_const_m <- function(d_shifted, shifted, shifted_cell_factor_nk, m_mode) {
+any_const_m <- function(d_shifted, shifted_cell_factor_nk, m_mode) {
   if(m_mode==DS.SINGLE || m_mode==DS.MULTI_Y)
     return(any(by(d_shifted, shifted_cell_factor_nk, FUN=const_vect)))
   if(m_mode==DS.MULTI_SAMPLE)
