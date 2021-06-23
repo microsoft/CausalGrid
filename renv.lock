@@ -161,9 +161,9 @@
       "RemoteHost": "api.github.com",
       "RemoteRepo": "causalTree",
       "RemoteUsername": "susanathey",
-      "RemoteRef": "master",
+      "RemoteRef": "4860476",
       "RemoteSha": "48604762b7db547f49e0e50460eb31a344933bba",
-      "Hash": "fa7f48ab9d73169a37244b40a307df8c"
+      "Hash": "a722e23b60ff4c13af8de907408370ca"
     },
     "class": {
       "Package": "class",
@@ -628,7 +628,7 @@
       "RemoteHost": "api.github.com",
       "RemoteRepo": "pkgdown",
       "RemoteUsername": "r-lib",
-      "RemoteRef": "HEAD",
+      "RemoteRef": "84f234c",
       "RemoteSha": "84f234cf19153ce99bf1bcf875dc56248ddf0cbe",
       "Hash": "1024a4cca011f650b2dcf6c60b43f1dc"
     },
@@ -755,7 +755,7 @@
       "Package": "renv",
       "Version": "0.12.0",
       "Source": "Repository",
-      "Repository": null,
+      "Repository": "CRAN",
       "Hash": "7340c71f46a0fd16506cfa804e224e44"
     },
     "reshape2": {
