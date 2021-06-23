@@ -3,12 +3,29 @@ title: "CV_Analysis"
 output: html_notebook
 ---
 
-```{r setup}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, dev = "ragg_png")
+```
+
+```{r}
 library(foreach)
 library(doSNOW)
 
 library(gsubfn)
 library(CausalGrid)
+```
+
+Some common parameters
+```{r}
+cores_to_use = getOption("cl.cores", default=5)
+S = 10
+
+set.seed(1337)
+N = 1000
+K = 3
+nbreaks_k = 5
+err_sds = c(1, 0.3, 0.1, 0.03) #c(1,0.1, 0.01, 0.001)
+Ks = c(2,5,10) #c(2,5,10)
 ```
 
 ```{r}
@@ -29,23 +46,14 @@ eval_mse <-function(y_tr, X_tr, d_tr, y_te, X_te, d_te, partition, est_plan, mod
 }
 ```
 
-
-Some common parameters
 ```{r}
-set.seed(1337)
-N = 1000
-K = 3
 X = matrix(runif(N*K), ncol=K) #Features for splitting partition
-nbreaks_k = 5
+d = rep(c(0,1), N/2) #treatment assignment
+tau = tau_fn(X)
 breaks_k = seq(nbreaks_k)/(nbreaks_k+1)
 breaks = list(breaks_k, breaks_k, breaks_k)
-tau = tau_fn(X)
-d = rep(c(0,1), N/2) #treatment assignment
-S = 200
-err_sds = c(1, 0.3, 0.1, 0.03) #c(1,0.1, 0.01, 0.001)
-Ks = c(2,5,10) #c(2,5,10)
-cores_to_use = getOption("cl.cores", default=5)
 ```
+
 
 ## Noise and CV
 A smaller noise level in the dgp makes it harder for the CV to determine that there is variation in the estimated coefficients between train+test folds. This makes extra-granular partitions not as penalized and therefore due to randomness, more likely to be selected.
@@ -76,7 +84,7 @@ if(cores_to_use>1){
 # using doSNOW instead of generic doparallel as it has a nice progress bar option.
 t1 = Sys.time()
 cat(paste("Start time: ",t1,"\n"))
-pb <- txtProgressBar(max = S, style = 3)
+pb <- txtProgressBar(max = S, style = 1)
 progress <- function(n) setTxtProgressBar(pb, n)
 opts <- list(progress = progress)
 sim_rets = foreach(s=1:S, .packages=c("gsubfn","CausalGrid"), .options.snow = opts) %doChange% { #.errorhandling = "pass", .export=c("tau_fn", "eval_mse")
@@ -135,7 +143,7 @@ n_cell_cv_1se = apply(n_cell_cv_1se, c(2,3), mean)
 
 ```{r}
 print("CV n_cell mean")
-print(n_cell_cv_mean) #Generally increases with k and as err_sd falls. With k because can grow deeper partitions (more chances for good anomolous results) on the majority of the data and mostly because it's now harder to estimate test (see next set where we do perfectly.). With this type of setup we'd always expect overly complex models (even if true DGP is more complicated than one split) as going below has true cost.
+print(n_cell_cv_mean) #Generally increases with k and as err_sd falls. With k because can grow deeper partitions (more chances for good anomolous results) on the majority of the data and mostly because it's now harder to estimate test. The first reason is only minor (see that when restricting to max_split=3 we still see incrase from 2->5) and second reason still prevails (see next set where we do perfectly.). With this type of setup we'd always expect overly complex models (even if true DGP is more complicated than one split) as going below has true cost.
 #print("num sims with n_cell_cv>2")
 #print(n_cell_cv_over)
 print("CV (w/ oracle test effect) n_cell mean")
@@ -146,5 +154,6 @@ print("CV (w/ lambda_1se) n_cell mean") #Does much better given the true objecti
 print(n_cell_cv_1se)
 ```
 ```{r}
+# We do great with the 1se rule!
 n_cell_cv_1se
 ```

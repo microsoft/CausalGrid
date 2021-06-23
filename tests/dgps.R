@@ -111,3 +111,22 @@ XOR_sim <- function(n=500, const_kappa=TRUE, err_sd=0.01) {
   y = eta + 0.5*(2*w-1)*kappa + epsilon
   return(list(y=y, X=X, w=w, kappa=kappa))
 }
+
+XOR2_sim <- function(n=500, const_kappa=TRUE, err_sd=0.01, kappa3_ratio=0.1) {
+  #This one adds a third dimension with mild heterogeneity so algos get stuck on that
+  w = rbinom(n, 1, 0.5)
+  K=3
+  X = matrix(rnorm(n*K), nrow=n, ncol=K)
+  eta = 0
+  if(const_kappa) {
+    mag = 1
+  }
+  else {
+    mag = abs(X[,1]) + abs(X[,2])
+  }
+  kappa = ((X[,1]>0 & X[,2]>0) | (X[,1]<0 & X[,2]<0))*mag + kappa3_ratio*X[,3]
+  epsilon = rnorm(n, 0, err_sd)
+  #y = eta + 0.5*(2*w-1)*kappa + epsilon
+  y = eta + w*kappa + epsilon
+  return(list(y=y, X=X, w=w, kappa=kappa))
+}

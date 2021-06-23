@@ -4,11 +4,10 @@ output: html_notebook
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, dev = "ragg_png")
 ```
 
 Notes:
-- To change parallel/single-threaded, search for PARALLEL comments
 - There is a "suffix" for output files so that one can test w/o overwritting
 
 
@@ -33,24 +32,28 @@ source(paste0(root_dir,"/tests/dgps.R"))
 ```
 
 ```{r paths}
-export_dir = "" #can be turned off below
+export_dir = paste0(root_dir,"/project/") #can be turned off below
 sim_rdata_fname = "project/sim.RData"
 log_file = "project/log.txt"
 tbl_export_path = paste0(export_dir, "tables/")
 fig_export_path = paste0(export_dir, "figs/")
+#If clean repo, might have to make the tbl and fig dirs.
 suffix = "-temp"
 ```
 
 ```{r}
 #Sim parameters
-S = 3 #3 100, TODO: Is this just 1!?
-n_parallel = getOption("cl.cores", default=3) #1 5; PARALLEL
+S = 100 #3 100, TODO: Is this just 1!?
+n_parallel = getOption("cl.cores", default=5) #1 5; PARALLEL
 
 Ns = c(500, 1000) #c(500, 1000)
 N_test = 8000
-D = 5 #3
-Ks = c(2, 2, 10, 20, 2)
-good_features = list(c(T, F), c(T, T, rep(F, 8)), c(rep(T, 4), rep(F, 16)), c(T,T), c(T,T))
+good_features = list(c(T, F), 
+                     c(T, T, rep(F, 8)), 
+                     c(rep(T, 4), rep(F, 16)), 
+                     c(T,T, F))
+D = length(good_features) #3
+Ks = sapply(good_features, length)
 ```
 
 ```{r}
@@ -69,23 +72,29 @@ my_seed = 1337
 set.seed(my_seed)
 rf.num.threads = 1 #NULL will multi-treatd, doesn't seem to help much with small data
 
-
-est_names = c("Causal Tree (CT)", "Causal Tree - Adaptive (CT-A)", 
-              "Causal Grid - Matching CT-A size (CG:M)", "Causal Grid (CG)", 
+est_names_ct = c("Causal Tree (CT CV2)", "Causal Tree - Adaptive (CT-A CV2)", 
+                 "Causal Tree (CT CV5)", "Causal Tree - Adaptive (CT-A CV5)")
+est_names_cg = c("Causal Grid - Matching CT-A size (CG:M)", "Causal Grid (CG)", 
               "CG + Linear Controls (CG-X)", "CG + RF Controls (CG-RF)", 
               "CG-X + Bumping (CG-X-B)", "CG-RF + Bumping (CG-RF-B)", 
               "CG-X-B - Matching CT size (CG-X-B:HM)", "CG-RF-B - Matching CT size (CG-RF-B:HM)")
+
+est_names = c(est_names_ct, est_names_cg)
 ```
 
 # Helper functions 
 ```{r}
 sim_data <- function(n=500, design=1) {
   if(design<=3) return(AI_sim(n, design))
-  return(XOR_sim(n, design==4))
+  return(XOR2_sim(n))
 }
 
 get_iter <- function(d, N_i, s) {
   (d-1)*NN*S + (N_i-1)*S + (s-1) + 1
+}
+
+get_dgp_idx <- function(d, N_i) {
+  (d-1)*NN + (N_i-1) + 1
 }
 
 yX_data <- function(y, X) {
@@ -94,46 +103,46 @@ yX_data <- function(y, X) {
   yX = as.data.frame(yX)
 }
 
-sim_ct_fit <- function(y, X, w, tr_sample, honest=FALSE) {
+sim_ct_fit <- function(y, X, w, tr_sample, honest=FALSE, cv_folds=nfolds) {
   yX = yX_data(y, X)
   set.seed(my_seed)
-  fit = ct_cv_tree("Y~.", data=yX, treatment=w, index_tr=tr_sample, minsize=minsize, split.Bucket=TRUE, bucketNum=b, xval=nfolds, split.Honest=honest, cv.Honest=honest)
+  fit = ct_cv_tree("Y~.", data=yX, treatment=w, index_tr=tr_sample, minsize=minsize, split.Bucket=TRUE, bucketNum=b, xval=cv_folds, split.Honest=honest, cv.Honest=honest)
   attr(fit$terms, ".Environment") <- NULL #save space other captures environment
   return(fit)
 }
 
-sim_ct_predict_te <- function(obj, y_te, X_te) {
-  yX_te = yX_data(y_te, X_te)
-  return(predict(obj, newdata=yX_te, type="vector"))
+sim_ct_predict_te <- function(obj, X_te) {
+  colnames(X_te) = paste("X", 1:ncol(X_te), sep="")
+  return(predict(obj, newdata=as.data.frame(X_te), type="vector"))
 }
 
-sim_eval_ct <- function(data1, data2, good_mask, honest=FALSE) {
-  list[y, X, w, tau] = data1
-  N = nrow(X)/2
-  tr_sample = c(rep(TRUE, N), rep(FALSE, N))
-  ct_fit = sim_ct_fit(y, X, w, tr_sample, honest=honest)
+sim_ct_vectors <- function(ct_fit, mask, X_te, tau_te) {
   nl = num_cells(ct_fit)
-  nsplits_by_dim = ct_nsplits_by_dim(ct_fit, ncol(X))
-  ngood = sum(nsplits_by_dim[good_mask])
+  nsplits_by_dim = ct_nsplits_by_dim(ct_fit, ncol(X_te))
+  ngood = sum(nsplits_by_dim[mask])
   ntot = sum(nsplits_by_dim)
-  list[y_te, X_te, w_te, tau_te] = data2
-  mse = mean((tau_te - sim_ct_predict_te(ct_fit, y_te, X_te))^2)
-  return(list(ct_fit, nl, mse, ngood, ntot))
+  mse = mean((tau_te - sim_ct_predict_te(ct_fit, X_te))^2)
+  return(c(nl, mse, ngood, ntot))
 }
 
-sim_cg_fit <- function(y, X, w, tr_sample, verbosity=0, do_rf=FALSE, num.threads=rf.num.threads, num.trees=100, ...) {
+sim_cg_fit <- function(y, X, w, tr_sample, verbosity=0, do_rf=FALSE, num.threads=rf.num.threads, num.trees=100, doCV=FALSE, incl_comp_in_pick=FALSE, ...) {
   set.seed(my_seed)
   if(do_rf) {
     return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, 
                                   min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, 
                                   ctrl_method=grid_rf(num.threads=num.threads, num.trees=num.trees), 
-                                  nsplits_k_warn_limit=NA, bump_complexity=list(doCV=TRUE, incl_comp_in_pick=TRUE), ...))
+                                  nsplits_k_warn_limit=NA, bump_complexity=list(doCV=doCV, incl_comp_in_pick=incl_comp_in_pick), ...))
   }
   else {
     return(fit_estimate_partition(y, X, d=w, tr_split=tr_sample, cv_folds=nfolds, verbosity=verbosity, 
                                   min_size=2*minsize, max_splits=10, bucket_min_d_var=TRUE, bucket_min_n=2*b, 
-                                  nsplits_k_warn_limit=NA, bump_complexity=list(doCV=TRUE, incl_comp_in_pick=TRUE), ...))
+                                  nsplits_k_warn_limit=NA, bump_complexity=list(doCV=doCV, incl_comp_in_pick=incl_comp_in_pick), ...))
   }
+}
+
+save_space_cg_rf <- function(grid_rf_fit) {
+  grid_rf_fit$est_plan$rf_y_fit <-grid_rf_fit$est_plan$rf_y_xfit <- grid_rf_fit$est_plan$rf_d_fit <- grid_rf_fit$est_plan$rf_d_xfit <- NULL
+  grid_rf_fit
 }
 
 sim_cg_vectors <- function(grid_fit, mask, X_te, tau_te) {
@@ -171,26 +180,61 @@ for(d in 1:D) {
 
 # Eval CT
 ```{r}
-results_ct_h = matrix(0,nrow=0, ncol=7)
-results_ct_a = matrix(0,nrow=0, ncol=7)
-ct_h_fit_models = list()
-ct_a_fit_models = list()
+outer_results_ct = list()
+n_ct_group = length(est_names_ct)
+nl_ct_group = array(dim=c(D*NN, n_ct_group, S))
+mse_ct_group = array(dim=c(D*NN, n_ct_group, S))
+ngood_ct_group = array(dim=c(D*NN, n_ct_group, S))
+ntot_ct_group = array(dim=c(D*NN, n_ct_group, S))
+pb = utils::txtProgressBar(0, S*NN*D, style = 1)
 for(d in 1:D) {
   for(N_i in 1:NN) {
+    dgp_i = get_dgp_idx(d, N_i)
     for(s in 1:S){
+      utils::setTxtProgressBar(pb, iter)
       iter = get_iter(d, N_i, s)
-      list[ct_h_fit, nl_h, mse_h, ngood_h, ntot_h] = sim_eval_ct(data1[[iter]], data2[[iter]], good_features[[d]], honest=T)
-      results_ct_h = rbind(results_ct_h, c(d, N_i, s, nl_h, mse_h, ngood_h, ntot_h))
-      ct_h_fit_models[[iter]] = ct_h_fit
-      list[ct_a_fit, nl, mse, ngood, ntot] = sim_eval_ct(data1[[iter]], data2[[iter]], good_features[[d]])
-      results_ct_a = rbind(results_ct_a, c(d, N_i, s, nl, mse, ngood, ntot))
-      ct_a_fit_models[[iter]] = ct_a_fit
+      list[y, X, w, tau] = data1[[iter]]
+      list[y_te, X_te, w_te, tau_te] = data2[[iter]]
+      tr_sample = c(rep(TRUE, round(nrow(X)/2)), rep(FALSE, N-round(nrow(X)/2)))
+      
+      ct_h2 = sim_ct_fit(y, X, w, tr_sample, honest=T, cv_folds=2)
+      ct_a2 = sim_ct_fit(y, X, w, tr_sample, honest=F, cv_folds=2)
+      ct_h5 = sim_ct_fit(y, X, w, tr_sample, honest=T, cv_folds=5)
+      ct_a5 = sim_ct_fit(y, X, w, tr_sample, honest=F, cv_folds=5)
+      fits = list(ct_h2, ct_a2,ct_h5, ct_a5)
+      
+      for(f_i in 1:length(fits)) {
+        fit = fits[[f_i]]
+        list[nl_f, mse_f, ngood_f, ntot_f] = sim_ct_vectors(fit, good_features[[d]], X_te, tau_te)
+        nl_ct_group[dgp_i, f_i, s] = nl_f
+        mse_ct_group[dgp_i, f_i, s] = mse_f
+        ngood_ct_group[dgp_i, f_i, s] = ngood_f
+        ntot_ct_group[dgp_i, f_i, s] = ntot_f
+      }
+      outer_results_ct[[iter]] = list(s, fits)
     }
   }
 }
-ct_a_nl = results_ct_a[,4]
-ct_h_nl = results_ct_h[,4]
+close(pb)
+nl_ct_group_orig = nl_ct_group
+mse_ct_group_orig = mse_ct_group
+ngood_ct_group_orig = ngood_ct_group
+ntot_ct_group_orig = ntot_ct_group
 ```
+
+```{r}
+nl_ct_group = nl_ct_group_orig[,3:4,]
+mse_ct_group = mse_ct_group_orig[,3:4,]
+ngood_ct_group = ngood_ct_group_orig[,3:4,]
+ntot_ct_group = ntot_ct_group_orig[,3:4,]
+est_names_ct = c("Causal Tree (CT)", "Causal Tree - Adaptive (CT-A)")
+est_names = c(est_names_ct, est_names_cg)
+n_ct_group = length(est_names_ct)
+
+mse_ct_group_mean = apply(mse_ct_group_orig, c(1,2), mean)
+mse_ct_group_mean
+```
+
 
 # Eval CG
 ```{r}
@@ -205,23 +249,30 @@ if(n_parallel>1) {
 bar_length = if(n_parallel>1) NN*D else S*NN*D
 t1 = Sys.time()
 cat(paste("Start time: ",t1,"\n"))
-pb = utils::txtProgressBar(0, bar_length, style = 3)
+pb = utils::txtProgressBar(0, bar_length, style = 1)
 run=1
-outer_results = list()
+outer_results_cg = list()
+n_cg_group = length(est_names_cg)
+nl_cg_group = array(dim=c(D*NN, n_cg_group, S))
+mse_cg_group = array(dim=c(D*NN, n_cg_group, S))
+ngood_cg_group = array(dim=c(D*NN, n_cg_group, S))
+ntot_cg_group = array(dim=c(D*NN, n_cg_group, S))
+#n_errors = matrix(0, nrow=D, ncol=NN)
+
 for(d in 1:D) {
   for(N_i in 1:NN) {
+    dgp_i = get_dgp_idx(d, N_i)
     if(n_parallel>1) {
       utils::setTxtProgressBar(pb, run)
       run = run+1
     }
-    #results_s = list() #PARALLEL: comment-out
-    #for(s in 1:S){  #PARALLEL: comment-out, uncomment next
+    #results_s = list() # To debug foreach
+    #for(s in 1:S){  # To debug foreach
     results_s = foreach(s=1:S, .packages=c("proto","gsubfn","rpart", "rpart.plot", "data.table","causalTree", "ranger",  "lattice", "ggplot2", "caret", "Matrix", "foreach", "CausalGrid"), .errorhandling = "pass") %doChange% { #, .combine=rbind
       if(n_parallel==1) {
         utils::setTxtProgressBar(pb, run)
         run = run+1
       }
-      res = c(s)
       N = Ns[N_i]
       iter = get_iter(d, N_i, s)
       list[y, X, w, tau] = data1[[iter]]
@@ -235,28 +286,42 @@ for(d in 1:D) {
       grid_a_LassoCV_b_fit <- sim_cg_fit(y, X, w, tr_sample, ctrl_method="LassoCV", bump_samples=N_bumps)
       grid_a_RF_b_fit <- sim_cg_fit(y, X, w, tr_sample, do_rf=TRUE, bump_samples=N_bumps)
 
-      grid_a_am_fit <- change_complexity(grid_a_fit, y, X, d=w, which.min(abs(ct_a_nl[iter] - (grid_a_fit$complexity_seq + 1))))
-      grid_a_LassoCV_b_hm_fit <- change_complexity(grid_a_LassoCV_b_fit, y, X, d=w, which.min(abs(ct_h_nl[iter] - (grid_a_LassoCV_b_fit$complexity_seq + 1))))
-      grid_a_RF_b_hm_fit <- change_complexity(grid_a_RF_b_fit, y, X, d=w, which.min(abs(ct_h_nl[iter] - (grid_a_RF_b_fit$complexity_seq + 1))))
+      ct_a_nl_s = nl_ct_group[dgp_i, 2, s]
+      grid_a_am_fit <- change_complexity(grid_a_fit, y, X, d=w, which.min(abs(ct_a_nl_s - (grid_a_fit$complexity_seq + 1))))
+      ct_h_nl_s = nl_ct_group[dgp_i, 1, s]
+      grid_a_LassoCV_b_hm_fit <- change_complexity(grid_a_LassoCV_b_fit, y, X, d=w, which.min(abs(ct_h_nl_s - (grid_a_LassoCV_b_fit$complexity_seq + 1))))
+      grid_a_RF_b_hm_fit <- change_complexity(grid_a_RF_b_fit, y, X, d=w, which.min(abs(ct_h_nl_s - (grid_a_RF_b_fit$complexity_seq + 1))))
       
-      res = c(res, sim_cg_vectors(grid_a_fit, good_features[[d]], X_te, tau_te))
-      res = c(res, sim_cg_vectors(grid_a_LassoCV_fit, good_features[[d]], X_te, tau_te))
-      res = c(res, sim_cg_vectors(grid_a_RF_fit, good_features[[d]], X_te, tau_te))
-      res = c(res, sim_cg_vectors(grid_a_LassoCV_b_fit, good_features[[d]], X_te, tau_te))
-      res = c(res, sim_cg_vectors(grid_a_RF_b_fit, good_features[[d]], X_te, tau_te))
-      res = c(res, sim_cg_vectors(grid_a_am_fit, good_features[[d]], X_te, tau_te))
-      res = c(res, sim_cg_vectors(grid_a_LassoCV_b_hm_fit, good_features[[d]], X_te, tau_te))
-      res = c(res, sim_cg_vectors(grid_a_RF_b_hm_fit, good_features[[d]], X_te, tau_te))
+      grid_a_RF_fit = save_space_cg_rf(grid_a_RF_fit)
+      grid_a_RF_b_fit = save_space_cg_rf(grid_a_RF_b_fit)
+      fits_base = list(grid_a_fit, grid_a_LassoCV_fit, grid_a_RF_fit, grid_a_LassoCV_b_fit, grid_a_RF_b_fit)
+      res_mat = matrix(nrow=0, ncol=4)
+      for(fit in c(fits_base, list(grid_a_am_fit, grid_a_LassoCV_b_hm_fit, grid_a_RF_b_hm_fit))) {
+        res_mat = rbind(res_mat, sim_cg_vectors(fit, good_features[[d]], X_te, tau_te))
+      }
       
-      #Save space
-      grid_a_RF_fit$est_plan$rf_y_fit <-grid_a_RF_fit$est_plan$rf_y_xfit <- grid_a_RF_fit$est_plan$rf_d_fit <- grid_a_RF_fit$est_plan$rf_d_xfit <- NULL
-      grid_a_RF_b_fit$est_plan$rf_y_fit <- grid_a_RF_b_fit$est_plan$rf_y_xfit <- grid_a_RF_b_fit$est_plan$rf_d_fit <- grid_a_RF_b_fit$est_plan$rf_d_xfit <- NULL
-      res = list(grid_a_fit, grid_a_LassoCV_fit, grid_a_RF_fit, grid_a_LassoCV_b_fit, grid_a_RF_b_fit, res)
-      
-      #results_s[[s]] = res #PARALLEL: comment-out, uncomment next
+      res = list(s, fits_base, res_mat)
+      #results_s[[s]] = res #P to debug foreach
       res
     }
-    outer_results[[(d-1)*NN + (N_i-1) + 1]] = results_s
+    
+    #recombine data
+    for(s in 1:S) {
+      iter = get_iter(d, N_i, s)
+      #if(inherits(res, "error")) {
+      #  cat(paste("Error: d=", d, "N_i=", N_i, "s=", s, "\n"))
+      #  n_errors[d,N_i] = n_errors[d,N_i] + 1
+      #  next
+      #}
+      list[s_s,fits_base, res_mat] = results_s[[s]]
+      for(r in 1:nrow(res_mat)) {
+        nl_cg_group[dgp_i, r, s] = res_mat[r,1]
+        mse_cg_group[dgp_i, r, s] = res_mat[r,2]
+        ngood_cg_group[dgp_i, r, s] = res_mat[r,3]
+        ntot_cg_group[dgp_i, r, s] = res_mat[r,4]
+      }
+    }
+    outer_results_cg[[dgp_i]] = results_s
   }
 }
 
@@ -266,136 +331,62 @@ close(pb)
 cat(paste("Total time: ",format(as.numeric(td))," ", attr(td,"units"),"\n"))
 
 if(n_parallel>1) stopCluster(cl)
+
+#if(sum(n_errors)>0){
+#  cat("N errors")
+#  print(n_errors)
+#}
 ```
 
 # Collect results
 
 ```{r}
-
-cg_a_fit_models = list()
-cg_a_LassoCV_fit_models = list()
-cg_a_RF_fit_models = list()
-cg_a_LassoCV_b_fit_models = list()
-cg_a_RF_b_fit_models = list()
-results_cg_a = matrix(0,nrow=0, ncol=7)
-results_cg_a_LassoCV = matrix(0,nrow=0, ncol=7)
-results_cg_a_RF = matrix(0,nrow=0, ncol=7)
-results_cg_a_LassoCV_b = matrix(0,nrow=0, ncol=7)
-results_cg_a_RF_b = matrix(0,nrow=0, ncol=7)
-results_cg_a_am = matrix(0,nrow=0, ncol=7)
-results_cg_a_LassoCV_b_hm = matrix(0,nrow=0, ncol=7)
-results_cg_a_RF_b_hm = matrix(0,nrow=0, ncol=7)
-n_errors = matrix(0, nrow=D, ncol=NN)
-for(d in 1:D) {
-  for(N_i in 1:NN) {
-    results_s = outer_results[[(d-1)*NN + (N_i-1) + 1]]
-    for(s in 1:S) {
-      res = results_s[[s]]
-      if(inherits(res, "error")) {
-        cat(paste("Error: d=", d, "N_i=", N_i, "s=", s, "\n"))
-        n_errors[d,N_i] = n_errors[d,N_i] + 1
-        next
-      }
-      iter = get_iter(d, N_i, s)
-      cg_a_fit_models[[iter]] = res[[1]]
-      cg_a_LassoCV_fit_models[[iter]] = res[[2]]
-      cg_a_RF_fit_models[[iter]] = res[[3]]
-      cg_a_LassoCV_b_fit_models[[iter]] = res[[4]]
-      cg_a_RF_b_fit_models[[iter]] = res[[5]]
-      res = res[[6]]
-      #s = res[1]
-      results_cg_a = rbind(results_cg_a, c(d, N_i, s, res[2:5]))
-      results_cg_a_LassoCV = rbind(results_cg_a_LassoCV, c(d, N_i, s, res[6:9]))
-      results_cg_a_RF = rbind(results_cg_a_RF, c(d, N_i, s, res[10:13]))
-      results_cg_a_LassoCV_b = rbind(results_cg_a_LassoCV, c(d, N_i, s, res[14:17]))
-      results_cg_a_RF_b = rbind(results_cg_a_RF, c(d, N_i, s, res[18:21]))
-      results_cg_a_am = rbind(results_cg_a_am, c(d, N_i, s, res[22:25]))
-      results_cg_a_LassoCV_b_hm = rbind(results_cg_a_LassoCV_b_hm, c(d, N_i, s, res[26:29]))
-      results_cg_a_RF_b_hm = rbind(results_cg_a_RF_b_hm, c(d, N_i, s, res[30:33]))
-    }
-  }
-}
-if(sum(n_errors)>0){
-  cat("N errors")
-  print(n_errors)
-}
+nl_group = abind(nl_ct_group, nl_cg_group, along=2)
+mse_group = abind(mse_ct_group, mse_cg_group, along=2)
+ngood_group = abind(ngood_ct_group, ngood_cg_group, along=2)
+ntot_group = abind(ntot_ct_group, ntot_cg_group, along=2)
 ```
 
 Potentially save raw results to file
 ```{r}
 if(F){
   save(S, Ns, D, data1, data2, 
-       ct_h_fit_models, ct_a_fit_models, 
-       cg_a_fit_models, cg_a_LassoCV_fit_models, cg_a_RF_fit_models, cg_a_LassoCV_b_fit_models, cg_a_RF_b_fit_models,
-       results_ct_h, results_ct_a, 
-       results_cg_a, results_cg_a_LassoCV, results_cg_a_RF, results_cg_a_LassoCV_b, results_cg_a_RF_b, results_cg_a_am, results_cg_a_LassoCV_b_hm, results_cg_a_RF_b_hm,
+       nl_group, mse_group, ngood_group, ntot_group,
+       outer_results_ct, outer_results_cg,
        file = sim_rdata_fname)
 }
 if(F){
   load(sim_rdata_fname)
-  ct_a_nl = results_ct_a[,4]
-  ct_h_nl = results_ct_h[,4]
 }
 ```
 
 # Output Results
 
 ```{r}
-sum_res = function(full_res) {
-  nl = matrix(0, nrow=D, ncol=NN)
-  mse = matrix(0, nrow=D, ncol=NN)
-  pct_good = matrix(0, nrow=D, ncol=NN)
-  for(d in 1:D) {
-    for(N_i in 1:NN) {
-      start = get_iter(d, N_i, 1)
-      end = get_iter(d, N_i, S)
-      nl[d,N_i] = mean(full_res[start:end,4])
-      mse[d,N_i] = mean(full_res[start:end,5])
-      pct_good[d,N_i] = sum(full_res[start:end,6])/sum(full_res[start:end,7])
-    }
-  }
-  return(list(nl, mse, pct_good))
-}
+ratio_good_group = ngood_group/ntot_group
+ratio_good_group[is.na(ratio_good_group)] = 1
 
-list[nl_CT_h, mse_CT_h, pct_good_CT_h] = sum_res(results_ct_h)
-list[nl_CT_a, mse_CT_a, pct_good_CT_a] = sum_res(results_ct_a)
-list[nl_CG_a, mse_CG_a, pct_good_CG_a] = sum_res(results_cg_a)
-list[nl_CG_a_LassoCV, mse_CG_a_LassoCV, pct_good_CG_a_LassoCV] = sum_res(results_cg_a_LassoCV)
-list[nl_CG_a_RF, mse_CG_a_RF, pct_good_CG_a_RF] = sum_res(results_cg_a_RF)
-list[nl_CG_a_LassoCV_b, mse_CG_a_LassoCV_b, pct_good_CG_a_LassoCV_b] = sum_res(results_cg_a_LassoCV_b)
-list[nl_CG_a_RF_b, mse_CG_a_RF_b, pct_good_CG_a_RF_b] = sum_res(results_cg_a_RF_b)
-list[nl_CG_a_am, mse_CG_a_am, pct_good_CG_a_am] = sum_res(results_cg_a_am)
-list[nl_CG_a_LassoCV_b_hm, mse_CG_a_LassoCV_b_hm, pct_good_CG_a_LassoCV_b_hm] = sum_res(results_cg_a_LassoCV_b_hm)
-list[nl_CG_a_RF_b_hm, mse_CG_a_RF_b_hm, pct_good_CG_a_RF_b_hm] = sum_res(results_cg_a_RF_b_hm)
-
+nl_group_mean = apply(nl_group, c(1,2), mean)
+mse_group_mean = apply(mse_group, c(1,2), mean)
+ngood_group_mean = apply(ngood_group, c(1,2), mean)
+ntot_group_mean = apply(ntot_group, c(1,2), mean)
+pct_good_group_mean = apply(ratio_good_group, c(1,2), mean)
 ```
 
-```{r}
-flatten_table <- function(mat) {
-  new_mat = matrix(as.vector(t(mat)), nrow=1)
-  colnames(new_mat) = rep(c("N=500", "N=1000"), D)
-  new_mat
-}
 
-compose_table <- function(mat_CT_h, mat_CT_a, mat_CG_a_am, mat_CG_a, mat_CG_a_LassoCV, mat_CG_a_RF,
-                          mat_CG_a_LassoCV_b, mat_CG_a_RF_b, mat_CG_a_LassoCV_b_hm, mat_CG_a_RF_b_hm) {
-  new_mat = rbind(flatten_table(mat_CT_h), flatten_table(mat_CT_a), 
-                  flatten_table(mat_CG_a_am), flatten_table(mat_CG_a), 
-                  flatten_table(mat_CG_a_LassoCV), flatten_table(mat_CG_a_RF),
-                  flatten_table(mat_CG_a_LassoCV_b), flatten_table(mat_CG_a_RF_b),
-                  flatten_table(mat_CG_a_LassoCV_b_hm), flatten_table(mat_CG_a_RF_b_hm))
-  rownames(new_mat) = est_names
-  new_mat
+```{r}
+compose_table <- function(res_array) {
+  res_array = t(res_array)
+  colnames(res_array) = rep(c("N=500", "N=1000"), D)
+  rownames(res_array) = est_names
+  res_array
 }
 ```
 
 ```{r}
-n_cells_comp <- compose_table(nl_CT_h, nl_CT_a, nl_CG_a_am, nl_CG_a, nl_CG_a_LassoCV, nl_CG_a_RF, nl_CG_a_LassoCV_b, nl_CG_a_RF_b, nl_CG_a_LassoCV_b_hm, nl_CG_a_RF_b_hm)
-mse_comp <- compose_table(mse_CT_h, mse_CT_a, mse_CG_a_am, mse_CG_a, mse_CG_a_LassoCV, mse_CG_a_RF, mse_CG_a_LassoCV_b, mse_CG_a_RF_b, mse_CG_a_LassoCV_b_hm, mse_CG_a_RF_b_hm)
-ratio_good_comp <- compose_table(
-  pct_good_CT_h, pct_good_CT_a, pct_good_CG_a_am, pct_good_CG_a, pct_good_CG_a_LassoCV, pct_good_CG_a_RF,
-  pct_good_CG_a_LassoCV_b, pct_good_CG_a_RF_b, pct_good_CG_a_LassoCV_b_hm, pct_good_CG_a_RF_b_hm
-)
+n_cells_comp <- compose_table(nl_group_mean)
+mse_comp <- compose_table(mse_group_mean)
+ratio_good_comp <- compose_table(pct_good_group_mean)
 print("n_cells_comp")
 print(n_cells_comp)
 print("mse_comp")
@@ -408,7 +399,8 @@ Write out tex tables
 ```{r}
 fmt_table <- function(xtbl, o_fname) {
   capt_ret <- capture.output(file_cont <- print(xtbl, floating=F, comment = F))
-  file_cont = paste0(str_sub(file_cont, end=29-D*2), paste0(paste0("&\\multicolumn{2}{c}{Design ", 1:D, "}", collapse=""),"\\\\ \n"), str_sub(file_cont, start=26-D*2))
+  #cat(file_cont, file=paste0(o_fname,"_2"))
+  file_cont = paste0(str_sub(file_cont, end=28+2*D), paste0(paste0("&\\multicolumn{2}{c}{Design ", 1:D, "}", collapse=""),"\\\\ \n"), str_sub(file_cont, start=29+2*D))
   cat(file_cont, file=o_fname)
 }
 
@@ -455,8 +447,6 @@ ct_cg_plot <- function(d, N_i, s, ct_honest=TRUE, cg_lasso=FALSE) {
 ```{r}
 if(F) {
   #Pick which one to show. 
-  ct_a_nl = results_ct_a[,4]
-  ct_h_nl = results_ct_h[,4]
   n_dim_splits = matrix(0,nrow=D*NN*S, ncol=6)
   for(d in 1:D) {
     k = Ks[d]
@@ -470,8 +460,9 @@ if(F) {
         
         grid_a_fit <- cg_a_fit_models[[iter]]
         grid_a_LassoCV_fit <- cg_a_LassoCV_fit_models[[iter]]
-        grid_a_m_fit <- change_complexity(grid_a_fit, y, X, d=w, which.min(abs(ct_h_nl[iter] - (grid_a_fit$complexity_seq + 1))))
-        grid_a_LassoCV_m_fit <- change_complexity(grid_a_LassoCV_fit, y, X, d=w, which.min(abs(ct_h_nl[iter] - (grid_a_LassoCV_fit$complexity_seq + 1))))
+        ct_h_nl_s = nl_ct_group[dgp_i, 1, s]
+        grid_a_m_fit <- change_complexity(grid_a_fit, y, X, d=w, which.min(abs(ct_h_nl_s - (grid_a_fit$complexity_seq + 1))))
+        grid_a_LassoCV_m_fit <- change_complexity(grid_a_LassoCV_fit, y, X, d=w, which.min(abs(ct_h_nl_s - (grid_a_LassoCV_fit$complexity_seq + 1))))
         
         n_dim_splits[iter, 1] = ct_ndim_splits(ct_h_fit_models[[iter]], k)
         n_dim_splits[iter, 2] = ct_ndim_splits(ct_a_fit_models[[iter]], k)
