@@ -7,8 +7,8 @@
 \method{get_desc_df}{grid_partition}(
   obj,
   cont_bounds_inf = TRUE,
-  do_str = FALSE,
-  drop_unsplit = FALSE,
+  do_str = TRUE,
+  drop_unsplit = TRUE,
   digits = NULL,
   unsplit_cat_star = TRUE,
   ...

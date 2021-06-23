@@ -53,7 +53,7 @@ eval_mse_hat(
 \item{sample}{Passed to \code{\link{est_params}}}
 }
 \value{
-\code{c(val, N_cell_empty, N_cell_error)}
+\code{c(val, N_cell_empty, N_cell_error)} val will be negative (and we're typically minimizing)
 }
 \description{
 Evaluate the MSE_hat objective function over the cells for the sample
