@@ -1,7 +1,7 @@
 # To run in the command-line with load_all: then run the code in the first if(FALSE), subsequent runs just run that last line of the False block
 
 library(testthat)
-loadNamespace(rprojroot)
+loadNamespace("rprojroot")
 root_dir <- rprojroot::find_package_root_file() #R cmd check doesn't copy over git and RStudio proj file
 
 if(FALSE) { #Run manually to debug

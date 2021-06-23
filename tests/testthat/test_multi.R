@@ -3,7 +3,7 @@
 library(testthat)
 
 if(FALSE) { #Run manually to debug
-  loadNamespace(rprojroot)
+  loadNamespace("rprojroot")
   debugSource(paste0(rprojroot::find_testthat_root_file(),"/test_multi.R"))
 }
 
