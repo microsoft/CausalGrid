@@ -38,7 +38,8 @@
 
 <meta property="og:title" content="Create partition_split — partition_split" />
 
-<meta property="og:description" content="Describes a single partition split. Used with add_partition_split." />
+<meta property="og:description" content="Describes a single partition split. Used with add_partition_split.
+Tests whether or not an object is a partition_split." />
 
 
 
@@ -119,10 +120,13 @@
     <div class="ref-description">
     
     <p>Describes a single partition split. Used with <code><a href='add_partition_split.html'>add_partition_split</a></code>.</p>
+<p>Tests whether or not an object is a <code>partition_split</code>.</p>
     
     </div>
 
-    <pre class="usage"><span class='fu'>partition_split</span><span class='op'>(</span><span class='va'>k</span>, <span class='va'>X_k_cut</span><span class='op'>)</span></pre>
+    <pre class="usage"><span class='fu'>partition_split</span><span class='op'>(</span><span class='va'>k</span>, <span class='va'>X_k_cut</span><span class='op'>)</span>
+
+<span class='fu'>is_partition_split</span><span class='op'>(</span><span class='va'>x</span><span class='op'>)</span></pre>
     
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
@@ -135,11 +139,23 @@
       <th>X_k_cut</th>
       <td><p>cut value</p></td>
     </tr>
+    <tr>
+      <th>x</th>
+      <td><p>an R object</p></td>
+    </tr>
     </table>
     
     <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
 
     <p>Partition Split</p>
+<p>Boolean</p>
+    
+    <h2 class="hasAnchor" id="functions"><a class="anchor" href="#functions"></a>Functions</h2>
+
+    
+<ul>
+<li><p><code>is_partition_split</code>: is partition_split</p></li>
+</ul>
     
 
   </div>

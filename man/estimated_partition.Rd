@@ -11,7 +11,7 @@ estimated_partition(partition, cell_stats, ...)
 
 \item{cell_stats}{cell_stats}
 
-\item{...}{}
+\item{...}{Additional arguments}
 }
 \value{
 object of class estimated_partition

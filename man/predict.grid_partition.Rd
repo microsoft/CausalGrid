@@ -4,14 +4,16 @@
 \alias{predict.grid_partition}
 \title{Get factor describing cell number fo each observation}
 \usage{
-\method{predict}{grid_partition}(obj, X, X_range = NULL)
+\method{predict}{grid_partition}(object, X, X_range = NULL, ...)
 }
 \arguments{
-\item{obj}{partition}
+\item{object}{partition}
 
 \item{X}{X data or list of X}
 
 \item{X_range}{(Optional) overrides the partition$X_range}
+
+\item{...}{Additional arguments. Unused.}
 }
 \value{
 Factor

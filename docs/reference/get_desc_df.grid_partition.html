@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Get descriptive data.frame for grid_partition — get_desc_df.grid_partition • CausalGrid</title>
+<title>Get descriptive data.frame — get_desc_df.grid_partition • CausalGrid</title>
 
 <!-- jquery -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js" integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo=" crossorigin="anonymous"></script>
@@ -36,9 +36,9 @@
 
 
 
-<meta property="og:title" content="Get descriptive data.frame for grid_partition — get_desc_df.grid_partition" />
+<meta property="og:title" content="Get descriptive data.frame — get_desc_df.grid_partition" />
 
-<meta property="og:description" content="A dataset with rows for each cell and columns defining partitioning" />
+<meta property="og:description" content="Get information for each cell" />
 
 
 
@@ -111,58 +111,68 @@
 <div class="row">
   <div class="col-md-9 contents">
     <div class="page-header">
-    <h1>Get descriptive data.frame for grid_partition</h1>
+    <h1>Get descriptive data.frame</h1>
     
     <div class="hidden name"><code>get_desc_df.grid_partition.Rd</code></div>
     </div>
 
     <div class="ref-description">
     
-    <p>A dataset with rows for each cell and columns defining partitioning</p>
+    <p>Get information for each cell</p>
     
     </div>
 
-    <pre class="usage"><span class='fu'>get_desc_df.grid_partition</span><span class='op'>(</span>
-  <span class='va'>partition</span>,
+    <pre class="usage"><span class='co'># S3 method for grid_partition</span>
+<span class='fu'><a href='get_desc_df.html'>get_desc_df</a></span><span class='op'>(</span>
+  <span class='va'>obj</span>,
   cont_bounds_inf <span class='op'>=</span> <span class='cn'>TRUE</span>,
   do_str <span class='op'>=</span> <span class='cn'>FALSE</span>,
   drop_unsplit <span class='op'>=</span> <span class='cn'>FALSE</span>,
   digits <span class='op'>=</span> <span class='cn'>NULL</span>,
-  unsplit_cat_star <span class='op'>=</span> <span class='cn'>TRUE</span>
+  unsplit_cat_star <span class='op'>=</span> <span class='cn'>TRUE</span>,
+  <span class='va'>...</span>
 <span class='op'>)</span></pre>
     
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
     <colgroup><col class="name" /><col class="desc" /></colgroup>
     <tr>
-      <th>partition</th>
-      <td><p>Partition</p></td>
+      <th>obj</th>
+      <td><p>partition object</p></td>
     </tr>
     <tr>
       <th>cont_bounds_inf</th>
-      <td><p>If True, will put continuous bounds as -Inf/Inf. Otherwise will use X_range bounds</p></td>
+      <td><p>Should "Inf" be used for continuous bounds (otherwise
+the bounds from X_range)</p></td>
     </tr>
     <tr>
       <th>do_str</th>
-      <td><p>If True, use a string like "(a, b]", otherwise have two separate columns with a and b</p></td>
+      <td><p>If True, use a string like "(a, b]", otherwise have two
+separate columns with a and b</p></td>
     </tr>
     <tr>
       <th>drop_unsplit</th>
-      <td><p>If True, drop columns for variables overwhich the partition did not split</p></td>
+      <td><p>If True, drop columns for variables overwhich the
+partition did not split</p></td>
     </tr>
     <tr>
       <th>digits</th>
-      <td><p>digits option</p></td>
+      <td><p>digits Option (default is NULL)</p></td>
     </tr>
     <tr>
       <th>unsplit_cat_star</th>
-      <td><p>if we don't split on a categorical var, should we show as "*" (otherwise list all levels)</p></td>
+      <td><p>Should unsplit categorical variables be listed as
+"*", otherwise all factor labels will be used.</p></td>
+    </tr>
+    <tr>
+      <th>...</th>
+      <td><p>Additional arguments.</p></td>
     </tr>
     </table>
     
     <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
 
-    <p>data.frame</p>
+    <p>data.frame with columns: partitioning columns</p>
     
 
   </div>

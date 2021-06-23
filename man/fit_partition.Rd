@@ -86,6 +86,8 @@ for treated and controls.}
 If m_mode==DS.MULTI_SAMPLE then each item is a sublist with such bootstrap samples over each dataset.}
 
 \item{bump_ratio}{For bootstraps the ratio of sample size to sample (between 0 and 1, default 1)}
+
+\item{...}{Additional params.}
 }
 \value{
 An object.

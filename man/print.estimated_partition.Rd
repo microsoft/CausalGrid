@@ -16,14 +16,16 @@
 \arguments{
 \item{x}{estimated_partition object}
 
-\item{do_str}{If True, use a string like "(a, b]", otherwise have two separate columns with a and b}
+\item{do_str}{If True, use a string like "(a, b]", otherwise have two
+separate columns with a and b}
 
-\item{drop_unsplit}{If True, drop columns for variables overwhich the partition did not split}
+\item{drop_unsplit}{If True, drop columns for variables overwhich the
+partition did not split}
 
 \item{digits}{digits Option (default is NULL)}
 
-\item{import_order}{Should we use importance ordering (most important on the left) or input ordering (default) for features.
-Rows will be ordered so that the right-most will change most frequently.}
+\item{import_order}{Whether should use importance ordering
+(most important on the left) or input ordering (default) for features.}
 
 \item{...}{Additional arguments. These will be passed to print.data.frame}
 }
@@ -31,5 +33,5 @@ Rows will be ordered so that the right-most will change most frequently.}
 string (and displayed)
 }
 \description{
-Print a summary of the estimated partition. Uses \code{\link{get_desc_df.estimated_partition}}
+Print a summary of the estimated partition. Uses \code{\link{get_desc_df}}
 }

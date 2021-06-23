@@ -2,18 +2,32 @@
 % Please edit documentation in R/grid_partition.R
 \name{partition_split}
 \alias{partition_split}
+\alias{is_partition_split}
 \title{Create partition_split}
 \usage{
 partition_split(k, X_k_cut)
+
+is_partition_split(x)
 }
 \arguments{
 \item{k}{dimension}
 
 \item{X_k_cut}{cut value}
+
+\item{x}{an R object}
 }
 \value{
 Partition Split
+
+Boolean
 }
 \description{
 Describes a single partition split. Used with \code{\link{add_partition_split}}.
+
+Tests whether or not an object is a \code{partition_split}.
 }
+\section{Functions}{
+\itemize{
+\item \code{is_partition_split}: is partition_split
+}}
+

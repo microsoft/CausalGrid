@@ -1,0 +1,6 @@
+external.libraries: C:\Program Files\Microsoft\R Open\R-3.5.3\library
+ignored.packages:
+package.dependency.fields: Imports, Depends, LinkingTo
+snapshot.type: implicit
+use.cache: TRUE
+vcs.ignore.library: TRUE

@@ -4,7 +4,7 @@
 #'
 #' @param partition partition
 #' @param cell_stats cell_stats
-#' @param ... 
+#' @param ... Additional arguments
 #'
 #' @return object of class estimated_partition
 #' @export
@@ -203,6 +203,8 @@ num_cells.estimated_partition <- function(obj) {
 #' @param fit estimated_partition 
 #' @param partition_i partition_i - 1 is the last include in split_seq included in new partition
 #' @inheritParams fit_partition
+#' @param index_tr Split between train and estimate samples (default is to get from \code{fit})
+#' @param split_seq sequential list of splits (default is to get from \code{fit})
 #'
 #' @return updated estimated_partition
 #' @export 
@@ -222,23 +224,23 @@ change_complexity <- function(fit, y, X, d=NULL, partition_i, index_tr = fit$ind
 }
 
 
-#' Get descriptive data.frame for an estimated_partition
+#' Get descriptive data.frame
+#'
+#' Get information for each cell
+#'
+#' @inheritParams get_desc_df
+#' @param  import_order Whether should use importance ordering
+#'   (most important on the left) or input ordering (default) for features. Rows
+#'   will be ordered so that the right-most will change most frequently.
 #' 
-#' Get statistics for each cell (feature boundary, and estimated cell stats)
-#'
-#' @param obj estimated_partition object 
-#' @param do_str If True, use a string like "(a, b]", otherwise have two separate columns with a and b
-#' @param drop_unsplit If True, drop columns for variables overwhich the partition did not split
-#' @param digits digits Option (default is NULL)
-#' @param import_order Should we use importance ordering (most important on the left) or input ordering (default) for features.
-#'                     Rows will be ordered so that the right-most will change most frequently.
-#'
-#' @return data.frame with columns: partitionin columns, {N_est, param_ests, pval} per estimate
-#' @export 
-get_desc_df.estimated_partition <- function(obj, do_str=TRUE, drop_unsplit=TRUE, digits=NULL, import_order=FALSE) {
+#' 
+#' @return data.frame with columns: partitioning columns, {N_est, param_ests,
+#'   pval} per estimate
+#' @export
+get_desc_df.estimated_partition <- function(obj, cont_bounds_inf=TRUE, do_str=TRUE, drop_unsplit=TRUE, digits=NULL, unsplit_cat_star=TRUE, import_order=FALSE, ...) {
   M = obj$M
   stats = obj$cell_stats[c(F, rep(T,M), rep(T,M), rep(F,M),rep(F,M), rep(F,M), rep(F,M), rep(T,M), rep(F,M), rep(F,M))]
-  part_df = get_desc_df.grid_partition(obj$partition, do_str=do_str, drop_unsplit=drop_unsplit, digits=digits)
+  part_df = get_desc_df(obj$partition, cont_bounds_inf=cont_bounds_inf, do_str=do_str, drop_unsplit=drop_unsplit, digits=digits, unsplit_cat_star=unsplit_cat_star)
   
   imp_weights = obj$importance_weights
   if(drop_unsplit) {
@@ -255,16 +257,18 @@ get_desc_df.estimated_partition <- function(obj, do_str=TRUE, drop_unsplit=TRUE,
 # Inherited params: do_str, drop_unsplit, digits, import_order
 #' Print estimated_partition
 #' 
-#' Print a summary of the estimated partition. Uses \code{\link{get_desc_df.estimated_partition}}
+#' Print a summary of the estimated partition. Uses \code{\link{get_desc_df}}
 #'
 #' @param x estimated_partition object 
-#' @inheritParams get_desc_df.estimated_partition
+#' @inheritParams get_desc_df
+#' @param import_order Whether should use importance ordering
+#'   (most important on the left) or input ordering (default) for features.
 #' @param ... Additional arguments. These will be passed to print.data.frame
 #'
 #' @return string (and displayed)
 #' @export 
 print.estimated_partition <- function(x, do_str=TRUE, drop_unsplit=TRUE, digits=NULL, import_order=FALSE, ...) {
-  return(print(get_desc_df.estimated_partition(x, do_str, drop_unsplit, digits, import_order=import_order), 
+  return(print(get_desc_df(x, do_str, drop_unsplit, digits, import_order=import_order), 
                digits=digits, ...))
 }
 
@@ -426,26 +430,27 @@ est_full_stats <- function(y, X, d, est_plan, y_es=NULL, X_es=NULL, d_es=NULL, i
 #' 
 #' Predicted unit-level treatment effect or outcome
 #'
-#' @param obj estimated_partition object
+#' @param object estimated_partition object
 #' @param new_X new X
 #' @param new_d new d. Required for type="outcome"
 #' @param type "effect" or "outcome" (currently not implemented)
+#' @param ... Additional arguments. Unused.
 #'
 #' @return predicted treatment effect
 #' @export
-predict.estimated_partition <- function(obj, new_X, new_d=NULL, type="effect") {
+predict.estimated_partition <- function(object, new_X, new_d = NULL, type = "effect", ...) {
   #TODO: for mode 1 &2 maybe return a matrix rather than list
   
   new_X = ensure_good_X(new_X)
   new_X_range = get_X_range(new_X)
   
-  cell_factor = predict(obj$partition, new_X, new_X_range)
-  M = obj$M
+  cell_factor = predict(object$partition, new_X, new_X_range)
+  M = object$M
   
   if(M==1) {
     N=nrow(new_X)
     cell_factor_df = data.frame(id=1:N, cell_i = as.integer(cell_factor))
-    m_df = merge(cell_factor_df, obj$cell_stats)
+    m_df = merge(cell_factor_df, object$cell_stats)
     m_df = m_df[order(m_df[["id"]]), ]
     return(m_df[["param_ests"]])
   }
@@ -453,7 +458,7 @@ predict.estimated_partition <- function(obj, new_X, new_d=NULL, type="effect") {
   rets = list()
   for(m in 1:M) {
     cell_factor_df = data.frame(id=1:N[m], cell_i = as.integer(cell_factor[[m]]))
-    m_df = merge(cell_factor_df, obj$cell_stats)
+    m_df = merge(cell_factor_df, object$cell_stats)
     m_df = m_df[order(m_df[["id"]]), ]
     rets[[m]] = m_df[["param_ests"]]
   }

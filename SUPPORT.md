@@ -4,10 +4,14 @@ Requirements
 
 Notes on building:
 - You will need RTools (probably at least v3.5)
-- install (renv)[https://rstudio.github.io/renv/articles/renv.html] package. Then after opening the project you should be able to use `renv::restore()`.
-- Given the cpp you should use "Install and restart" (and not use "Load All") to get the new library. On Windows, when building, you should restart the R session before this otherwise it can't copy over the DLL (it stays in memory).
-- If you want updated vignettes to show up when using "Load All", you can use `devtools::build_vignettes()`.
+- install (renv)[https://rstudio.github.io/renv/articles/renv.html] package. Then after opening the project you should be able to use `renv::restore()`. Some packages (such as `brio, cpp11, knitr, ragg, systemfonts, textshaping`) aren't mentioned directly, but are used in building vignettes.
+- Given the cpp you should use "Install and restart" (and not use "Load All") to get the new library (though you might be able to get away w/o it if you don't change the DLL). On Windows, when building, you should restart the R session before this otherwise it can't copy over the DLL (it stays in memory).
+- If you want updated vignettes to show up when using "Load All", you can use `devtools::build_vignettes()` (possibly with `install=FALSE` to speed things up). They will get placed in `doc/` (not `docs`).
+- To build the html help in `docs/` use `pkgdown::build_site()`.
 - Building copies everything over to temp dir and then deletes, so might want to move the large files (`project/sim.RData`) out to save time.
+
+Project:
+- If using MRAN you might get warnings from `renv` about `Revoutils`. You can create a rename `renv/settings.dcf.bak` to `renv/settings.dcf` and edit the line `external.libraries: C:\Program Files\Microsoft\R Open\R-X.X.X\library` with the right library version.
 
 
 # Support

@@ -39,10 +39,9 @@
 #' @importFrom Rcpp sourceCpp
 #' @importFrom stats coef formula lm model.matrix p.adjust pt qt quantile sd
 #'   vcov var predict rnorm
-#' @importFrom utils combn
-#' @import caret
-#' @import gsubfn
-#' @import Rcpp
+#' @importFrom utils combn txtProgressBar setTxtProgressBar getTxtProgressBar
+#' @importFrom caret createFolds
+#' @importFrom gsubfn list [<-.result
 #' @import assertthat
 #' @importFrom purrr partial
 #' @docType package

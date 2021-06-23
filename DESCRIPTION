@@ -4,10 +4,6 @@ Version: 0.2
 Authors@R: person("Brian", "Quistorff", email = "Brian.Quistorff@microsoft.com",
                   role = c("aut", "cre"))
 Description: Analysis of Subgroups.
-Depends: R (>= 3.1.0), 
-    caret,
-	gsubfn,
-	assertthat
 License: MIT + file LICENSE
 LazyData: true
 RoxygenNote: 7.1.1
@@ -20,9 +16,15 @@ Suggests:
     pbapply,
     testthat,
     knitr,
-    rmarkdown
+    rmarkdown,
+    ragg,
+    gridExtra
 BuildVignettes: true
-Imports: Rcpp (>= 1.0.1)
+Imports: Rcpp (>= 1.0.1),
+	gsubfn,
+	assertthat, 
+    caret,
+	purrr
 LinkingTo: Rcpp
 Encoding: UTF-8
 VignetteBuilder: knitr
