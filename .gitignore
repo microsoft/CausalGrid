@@ -2,6 +2,7 @@
 project/sim.RData
 project/log.txt
 tables/
+literature/
 
 #Cpp builds
 src/*.o

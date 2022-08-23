@@ -13,6 +13,7 @@ Notes:
 
 
 ```{r, message=FALSE}
+library(abind)
 library(gsubfn)
 library(devtools)
 library(CausalGrid)
@@ -37,22 +38,23 @@ sim_rdata_fname = "project/sim.RData"
 log_file = "project/log.txt"
 tbl_export_path = paste0(export_dir, "tables/")
 fig_export_path = paste0(export_dir, "figs/")
-#If clean repo, might have to make the tbl and fig dirs.
 suffix = "-temp"
 ```
 
 ```{r}
 #Sim parameters
-S = 100 #3 100, TODO: Is this just 1!?
-n_parallel = getOption("cl.cores", default=5) #1 5; PARALLEL
+n_parallel = getOption("cl.cores", default=20) #1 5 20; PARALLEL
+S = 1000 #3 1000, n_parallel TODO: Is this just 1 in CT!?
+# num.trees=100 # 100 below
 
 Ns = c(500, 1000) #c(500, 1000)
 N_test = 8000
 good_features = list(c(T, F), 
                      c(T, T, rep(F, 8)), 
-                     c(rep(T, 4), rep(F, 16)), 
-                     c(T,T, F))
-D = length(good_features) #3
+                     c(rep(T, 4), rep(F, 16))
+                     #,c(T,T, F)
+                     )
+D = length(good_features)
 Ks = sapply(good_features, length)
 ```
 
@@ -61,7 +63,6 @@ Ks = sapply(good_features, length)
 b = 4
 nfolds = 5
 minsize=25
-N_bumps = 20
 
 NN = length(Ns)
 NIters = NN*D*S
@@ -72,13 +73,14 @@ my_seed = 1337
 set.seed(my_seed)
 rf.num.threads = 1 #NULL will multi-treatd, doesn't seem to help much with small data
 
-est_names_ct = c("Causal Tree (CT CV2)", "Causal Tree - Adaptive (CT-A CV2)", 
-                 "Causal Tree (CT CV5)", "Causal Tree - Adaptive (CT-A CV5)")
-est_names_cg = c("Causal Grid - Matching CT-A size (CG:M)", "Causal Grid (CG)", 
-              "CG + Linear Controls (CG-X)", "CG + RF Controls (CG-RF)", 
-              "CG-X + Bumping (CG-X-B)", "CG-RF + Bumping (CG-RF-B)", 
-              "CG-X-B - Matching CT size (CG-X-B:HM)", "CG-RF-B - Matching CT size (CG-RF-B:HM)")
-
+est_names_ct = c("Causal Tree (CT)", "Causal Tree - Adaptive (CT-A)", "CT-A - Matching CT size (CT-A:M)"
+                 #,"Causal Tree (CT CV2)", "Causal Tree - Adaptive (CT-A CV2)"
+                 )
+est_names_cg = c("Causal Grid (CG)", "CG + Linear Controls (CG-X)", "CG + RF Controls (CG-RF)", 
+                 "CG - Matching CT size (CG:M)", "CG-X - Matching CT size (CG-X:M)", "CG-RF - Matching CT size (CG-RF:M)"
+              )
+small_table_idx = c(1,4,5,6)
+app_table_idx = c(7,8,9)
 est_names = c(est_names_ct, est_names_cg)
 ```
 
@@ -103,10 +105,10 @@ yX_data <- function(y, X) {
   yX = as.data.frame(yX)
 }
 
-sim_ct_fit <- function(y, X, w, tr_sample, honest=FALSE, cv_folds=nfolds) {
+sim_ct_fit <- function(y, X, w, tr_sample, honest=FALSE, cv_folds=nfolds, complexity="CV") {
   yX = yX_data(y, X)
   set.seed(my_seed)
-  fit = ct_cv_tree("Y~.", data=yX, treatment=w, index_tr=tr_sample, minsize=minsize, split.Bucket=TRUE, bucketNum=b, xval=cv_folds, split.Honest=honest, cv.Honest=honest)
+  fit = ct_cv_tree("Y~.", data=yX, treatment=w, index_tr=tr_sample, minsize=minsize, split.Bucket=TRUE, bucketNum=b, xval=cv_folds, split.Honest=honest, cv.Honest=honest, complexity=complexity)
   attr(fit$terms, ".Environment") <- NULL #save space other captures environment
   return(fit)
 }
@@ -178,6 +180,17 @@ for(d in 1:D) {
 }
 ```
 
+```{r}
+`%doChange%` = if(n_parallel>1) `%dopar%` else `%do%` #so I can just change variable without changing other code for single-threaded
+if(n_parallel>1) {
+  if(file.exists(log_file)) file.remove(log_file)
+  #cl <- makeCluster(n_parallel, outfile=log_file)
+  cl <- makeCluster(n_parallel)
+  registerDoSNOW(cl)
+}
+```
+
+
 # Eval CT
 ```{r}
 outer_results_ct = list()
@@ -186,22 +199,52 @@ nl_ct_group = array(dim=c(D*NN, n_ct_group, S))
 mse_ct_group = array(dim=c(D*NN, n_ct_group, S))
 ngood_ct_group = array(dim=c(D*NN, n_ct_group, S))
 ntot_ct_group = array(dim=c(D*NN, n_ct_group, S))
-pb = utils::txtProgressBar(0, S*NN*D, style = 1)
+bar_length = if(n_parallel>1) NN*D else S*NN*D
+pb = utils::txtProgressBar(0, bar_length, style = 1)
+run=1
+
 for(d in 1:D) {
   for(N_i in 1:NN) {
     dgp_i = get_dgp_idx(d, N_i)
-    for(s in 1:S){
-      utils::setTxtProgressBar(pb, iter)
+    if(n_parallel>1) {
+      utils::setTxtProgressBar(pb, run)
+      run = run+1
+    }
+    #results_s = list() # To debug foreach
+    #for(s in 1:S){  # To debug foreach
+    results_s = foreach(s=1:S, d1=lapply(1:S, function(s1) data1[[get_iter(d, N_i, s1)]]), d2=lapply(1:S, function(s2) data2[[get_iter(d, N_i, s2)]]), .packages=c("gsubfn","causalTree"), .errorhandling = "pass", .noexport=c("data1", "data2"), .inorder=FALSE, .export=c("num_cells","num_cells.rpart")) %doChange% {  #for some reason we have to export some functions manually !?
+      if(n_parallel==1) {
+        utils::setTxtProgressBar(pb, run)
+        run = run+1
+      }
       iter = get_iter(d, N_i, s)
-      list[y, X, w, tau] = data1[[iter]]
-      list[y_te, X_te, w_te, tau_te] = data2[[iter]]
+      #d1 = data1[[iter]] # To debug foreach
+      #d2 = data2[[iter]] # To debug foreach
+      list[y, X, w, tau] = d1
+      list[y_te, X_te, w_te, tau_te] = d2
       tr_sample = c(rep(TRUE, round(nrow(X)/2)), rep(FALSE, N-round(nrow(X)/2)))
       
-      ct_h2 = sim_ct_fit(y, X, w, tr_sample, honest=T, cv_folds=2)
-      ct_a2 = sim_ct_fit(y, X, w, tr_sample, honest=F, cv_folds=2)
       ct_h5 = sim_ct_fit(y, X, w, tr_sample, honest=T, cv_folds=5)
+      nl_ct_h5 = num_cells(ct_h5)
       ct_a5 = sim_ct_fit(y, X, w, tr_sample, honest=F, cv_folds=5)
-      fits = list(ct_h2, ct_a2,ct_h5, ct_a5)
+      ct_a5_m = sim_ct_fit(y, X, w, tr_sample, honest=F, cv_folds=5, complexity=nl_ct_h5)
+      #ct_h2 = sim_ct_fit(y, X, w, tr_sample, honest=T, cv_folds=2)
+      #ct_a2 = sim_ct_fit(y, X, w, tr_sample, honest=F, cv_folds=2)
+      fits = list(ct_h5, ct_a5, ct_a5_m) #,ct_h2, ct_a2 
+      res = list(s, fits)
+      #results_s[[s]] = res #P to debug foreach
+      res
+    }
+    
+    #recombine data
+    for(res_s in 1:S){
+      res = results_s[[res_s]]
+      list[s, fits] = res
+      iter = get_iter(d, N_i, s)
+      #if(inherits(res, "error")) {
+      #}
+      outer_results_ct[[iter]] = res
+      list[y_te, X_te, w_te, tau_te] = data2[[iter]]
       
       for(f_i in 1:length(fits)) {
         fit = fits[[f_i]]
@@ -211,44 +254,39 @@ for(d in 1:D) {
         ngood_ct_group[dgp_i, f_i, s] = ngood_f
         ntot_ct_group[dgp_i, f_i, s] = ntot_f
       }
-      outer_results_ct[[iter]] = list(s, fits)
     }
   }
 }
 close(pb)
-nl_ct_group_orig = nl_ct_group
-mse_ct_group_orig = mse_ct_group
-ngood_ct_group_orig = ngood_ct_group
-ntot_ct_group_orig = ntot_ct_group
 ```
 
 ```{r}
-nl_ct_group = nl_ct_group_orig[,3:4,]
-mse_ct_group = mse_ct_group_orig[,3:4,]
-ngood_ct_group = ngood_ct_group_orig[,3:4,]
-ntot_ct_group = ntot_ct_group_orig[,3:4,]
-est_names_ct = c("Causal Tree (CT)", "Causal Tree - Adaptive (CT-A)")
-est_names = c(est_names_ct, est_names_cg)
-n_ct_group = length(est_names_ct)
+# # use just the CV5 ones
+# nl_ct_group_orig = nl_ct_group
+# mse_ct_group_orig = mse_ct_group
+# ngood_ct_group_orig = ngood_ct_group
+# ntot_ct_group_orig = ntot_ct_group
+# nl_ct_group = nl_ct_group_orig[,3:4,]
+# mse_ct_group = mse_ct_group_orig[,3:4,]
+# ngood_ct_group = ngood_ct_group_orig[,3:4,]
+# ntot_ct_group = ntot_ct_group_orig[,3:4,]
+# est_names_ct = c("Causal Tree (CT)", "Causal Tree - Adaptive (CT-A)")
+# est_names = c(est_names_ct, est_names_cg)
+# n_ct_group = length(est_names_ct)
+```
 
-mse_ct_group_mean = apply(mse_ct_group_orig, c(1,2), mean)
+
+```{r}
+mse_ct_group_mean = apply(mse_ct_group, c(1,2), mean)
 mse_ct_group_mean
 ```
 
 
 # Eval CG
 ```{r}
-`%doChange%` = if(n_parallel>1) `%dopar%` else `%do%` #so I can just change variable without changing other code for single-threaded
-if(n_parallel>1) {
-  if(file.exists(log_file)) file.remove(log_file)
-  #cl <- makeCluster(n_parallel, outfile=log_file)
-  cl <- makeCluster(n_parallel)
-  registerDoSNOW(cl)
-}
-
-bar_length = if(n_parallel>1) NN*D else S*NN*D
 t1 = Sys.time()
 cat(paste("Start time: ",t1,"\n"))
+bar_length = if(n_parallel>1) NN*D else S*NN*D
 pb = utils::txtProgressBar(0, bar_length, style = 1)
 run=1
 outer_results_cg = list()
@@ -268,35 +306,35 @@ for(d in 1:D) {
     }
     #results_s = list() # To debug foreach
     #for(s in 1:S){  # To debug foreach
-    results_s = foreach(s=1:S, .packages=c("proto","gsubfn","rpart", "rpart.plot", "data.table","causalTree", "ranger",  "lattice", "ggplot2", "caret", "Matrix", "foreach", "CausalGrid"), .errorhandling = "pass") %doChange% { #, .combine=rbind
+    results_s = foreach(s=1:S, d1=lapply(1:S, function(s1) data1[[get_iter(d, N_i, s1)]]), d2=lapply(1:S, function(s2) data2[[get_iter(d, N_i, s2)]]), .packages=c("gsubfn","ranger", "CausalGrid"), .errorhandling = "pass", .inorder=FALSE) %doChange% {
       if(n_parallel==1) {
         utils::setTxtProgressBar(pb, run)
         run = run+1
       }
       N = Ns[N_i]
       iter = get_iter(d, N_i, s)
-      list[y, X, w, tau] = data1[[iter]]
-      list[y_te, X_te, w_te, tau_te] = data2[[iter]]
+      #d1 = data1[[iter]] # To debug foreach
+      #d2 = data2[[iter]] # To debug foreach
+      list[y, X, w, tau] = d1
+      list[y_te, X_te, w_te, tau_te] = d2
       tr_sample = c(rep(TRUE, N), rep(FALSE, N))
       
       
       grid_a_fit <- sim_cg_fit(y, X, w, tr_sample)
       grid_a_LassoCV_fit <- sim_cg_fit(y, X, w, tr_sample, ctrl_method="LassoCV")
       grid_a_RF_fit <- sim_cg_fit(y, X, w, tr_sample, do_rf=TRUE)
-      grid_a_LassoCV_b_fit <- sim_cg_fit(y, X, w, tr_sample, ctrl_method="LassoCV", bump_samples=N_bumps)
-      grid_a_RF_b_fit <- sim_cg_fit(y, X, w, tr_sample, do_rf=TRUE, bump_samples=N_bumps)
 
-      ct_a_nl_s = nl_ct_group[dgp_i, 2, s]
-      grid_a_am_fit <- change_complexity(grid_a_fit, y, X, d=w, which.min(abs(ct_a_nl_s - (grid_a_fit$complexity_seq + 1))))
       ct_h_nl_s = nl_ct_group[dgp_i, 1, s]
-      grid_a_LassoCV_b_hm_fit <- change_complexity(grid_a_LassoCV_b_fit, y, X, d=w, which.min(abs(ct_h_nl_s - (grid_a_LassoCV_b_fit$complexity_seq + 1))))
-      grid_a_RF_b_hm_fit <- change_complexity(grid_a_RF_b_fit, y, X, d=w, which.min(abs(ct_h_nl_s - (grid_a_RF_b_fit$complexity_seq + 1))))
+      grid_a_hm_fit <- change_complexity(grid_a_fit, y, X, d=w, which.min(abs(ct_h_nl_s - (grid_a_fit$complexity_seq + 1))))
+      grid_a_LassoCV_hm_fit <- change_complexity(grid_a_LassoCV_fit, y, X, d=w, which.min(abs(ct_h_nl_s - (grid_a_LassoCV_fit$complexity_seq + 1))))
+      grid_a_RF_hm_fit <- change_complexity(grid_a_RF_fit, y, X, d=w, which.min(abs(ct_h_nl_s - (grid_a_RF_fit$complexity_seq + 1))))
       
       grid_a_RF_fit = save_space_cg_rf(grid_a_RF_fit)
-      grid_a_RF_b_fit = save_space_cg_rf(grid_a_RF_b_fit)
-      fits_base = list(grid_a_fit, grid_a_LassoCV_fit, grid_a_RF_fit, grid_a_LassoCV_b_fit, grid_a_RF_b_fit)
+      
+      fits_base = list(grid_a_fit, grid_a_LassoCV_fit, grid_a_RF_fit)
+      fits_match = list(grid_a_hm_fit, grid_a_LassoCV_hm_fit, grid_a_RF_hm_fit)
       res_mat = matrix(nrow=0, ncol=4)
-      for(fit in c(fits_base, list(grid_a_am_fit, grid_a_LassoCV_b_hm_fit, grid_a_RF_b_hm_fit))) {
+      for(fit in c(fits_base, fits_match)) {
         res_mat = rbind(res_mat, sim_cg_vectors(fit, good_features[[d]], X_te, tau_te))
       }
       
@@ -306,14 +344,15 @@ for(d in 1:D) {
     }
     
     #recombine data
-    for(s in 1:S) {
+    for(res_s in 1:S) {
+      res = results_s[[res_s]]
+      list[s, fits_base, res_mat] = res
       iter = get_iter(d, N_i, s)
       #if(inherits(res, "error")) {
       #  cat(paste("Error: d=", d, "N_i=", N_i, "s=", s, "\n"))
       #  n_errors[d,N_i] = n_errors[d,N_i] + 1
       #  next
       #}
-      list[s_s,fits_base, res_mat] = results_s[[s]]
       for(r in 1:nrow(res_mat)) {
         nl_cg_group[dgp_i, r, s] = res_mat[r,1]
         mse_cg_group[dgp_i, r, s] = res_mat[r,2]
@@ -330,13 +369,16 @@ td = t2-t1
 close(pb)
 cat(paste("Total time: ",format(as.numeric(td))," ", attr(td,"units"),"\n"))
 
-if(n_parallel>1) stopCluster(cl)
-
 #if(sum(n_errors)>0){
 #  cat("N errors")
 #  print(n_errors)
 #}
 ```
+
+```{r}
+if(n_parallel>1) stopCluster(cl)
+```
+
 
 # Collect results
 
@@ -387,13 +429,21 @@ compose_table <- function(res_array) {
 n_cells_comp <- compose_table(nl_group_mean)
 mse_comp <- compose_table(mse_group_mean)
 ratio_good_comp <- compose_table(pct_good_group_mean)
-print("n_cells_comp")
+cat("n_cells_comp\n")
 print(n_cells_comp)
-print("mse_comp")
+cat("mse_comp\n")
 print(mse_comp)
-print("ratio_good_comp")
+cat("ratio_good_comp\n")
 print(ratio_good_comp)
+
+benefit = (mse_comp[1,] - mse_comp[5,])/mse_comp[1,]
+cat(paste("benefit for CT-X=[", min(benefit), ",", max(benefit), "]\n"))
+print(benefit)
+benefit = (mse_comp[1,] - mse_comp[6,])/mse_comp[1,]
+cat(paste("benefit for CT-RF=[", min(benefit), ",", max(benefit), "]\n"))
+print(benefit)
 ```
+
 
 Write out tex tables 
 ```{r}
@@ -405,9 +455,12 @@ fmt_table <- function(xtbl, o_fname) {
 }
 
 if(T){ #Output tables
-  fmt_table(xtable(n_cells_comp, digits=2), paste0(tbl_export_path, "n_cells",suffix,".tex"))
-  fmt_table(xtable(mse_comp, digits=3), paste0(tbl_export_path, "mse",suffix,".tex"))
-  fmt_table(xtable(ratio_good_comp), paste0(tbl_export_path, "ratio_good",suffix,".tex"))
+  fmt_table(xtable(n_cells_comp[small_table_idx,], digits=2), paste0(tbl_export_path, "n_cells",suffix,".tex"))
+  fmt_table(xtable(mse_comp[small_table_idx,], digits=3), paste0(tbl_export_path, "mse",suffix,".tex"))
+  fmt_table(xtable(ratio_good_comp[small_table_idx,]), paste0(tbl_export_path, "ratio_good",suffix,".tex"))
+  fmt_table(xtable(n_cells_comp[app_table_idx,], digits=2), paste0(tbl_export_path, "n_cells_app",suffix,".tex"))
+  fmt_table(xtable(mse_comp[app_table_idx,], digits=3), paste0(tbl_export_path, "mse_app",suffix,".tex"))
+  fmt_table(xtable(ratio_good_comp[app_table_idx,]), paste0(tbl_export_path, "ratio_good_app",suffix,".tex"))
 }
 ```
 

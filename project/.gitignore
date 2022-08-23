@@ -1,2 +1,6 @@
 tables/
 figs/
+*.lyx
+*.png
+*~
+*.pdf

@@ -93,7 +93,8 @@ plot_2D_partition.rpart <- function(cart_fit, X_range) {
 }
 
 ct_cv_tree <- function(form, data, treatment, index_tr=NULL, tr_split=NA, split.Honest=TRUE, cv.Honest=TRUE, 
-                       minsize=2L, split.Bucket=FALSE, bucketNum=5, xval=10) {
+                       minsize=2L, split.Bucket=FALSE, bucketNum=5, xval=10, complexity="CV") {
+  #complex = "CV" or target number of leaves
   N = nrow(data)
   if(is.null(index_tr)) {
     if(is.na(tr_split)) tr_split=0.5
@@ -118,8 +119,13 @@ ct_cv_tree <- function(form, data, treatment, index_tr=NULL, tr_split=NA, split.
                                                            split.Bucket = split.Bucket, bucketNum=bucketNum,
                                                            cv.option = "CT", cv.Honest = cv.Honest, minsize=minsize, 
                                                            split.alpha=split.alpha, xval=xval))
-  #print(fn_ret)
-  opcp <- honestTree$cptable[,1][which.min(honestTree$cptable[,4])]
+  if(complexity=="CV") {
+    opcp <- honestTree$cptable[,1][which.min(honestTree$cptable[,4])]
+  }
+  else {
+    opcp <- honestTree$cptable[,1][which.min(abs(honestTree$cptable[,2]+1 - complexity))]
+  }
+  
   opTree <- prune(honestTree, opcp)
   
   return(opTree)
